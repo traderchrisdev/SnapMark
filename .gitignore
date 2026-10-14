@@ -1,0 +1,7 @@
+.DS_Store
+
+# Phase 0 device logs, screenshots and exports pulled from the Manta (includes personal note pages).
+spike-out/
+
+# Throwaway Phase 0 spike plugin; its findings live in SPIKES.md.
+SnapMarkSpike/
