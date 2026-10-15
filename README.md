@@ -1,0 +1,35 @@
+# SnapMark for Supernote
+
+**Turn what's on your screen into a note you can write on, in one tap.**
+
+SnapMark is a free, open-source plugin for Supernote e-ink devices.
+
+- **Snap page** (in a PDF or EPUB): the page becomes a new note, with your handwriting copied as editable ink, highlights kept, and a `↩` link back to the page.
+- **Floating capture button:** a small button that floats over every app (Kindle, the browser, a PDF, anything). Tap it, and about a second later you're writing on a note made from that screen.
+- **Annotate screenshot:** a Supernote screenshot becomes a new note.
+- **Insert screenshot:** a screenshot goes onto the page you're on, as a picture.
+- **Export page as PNG:** the current note page, with your writing, saved as an image.
+- **Snaps inbox (optional):** collect every snap as the next page of one notebook instead of a note each.
+
+Everything stays on your device: no account, no internet access.
+
+## Download and install
+
+1. Download `SnapMark-v<version>.snplg` from the **[latest release](../../releases/latest)**.
+2. Copy it into the `MyStyle` folder on your Supernote (USB or the Partner app).
+3. On the device: **Settings → Apps → Plugins → Choose Installation Package** and pick the file.
+
+**[How-to guide](HOWTO.md)**: every feature, the settings, updating, privacy, troubleshooting.
+
+**Requirements:** firmware with plugin permissions (Chauvet 3.29.43+ on Manta and Nomad, 2.26.40+ on A5 X and A6 X). **Tested on a Manta only;** other models should work but are untested.
+
+## For developers
+
+- **Building:** the plugin's source and build instructions are in [`SnapMark/`](SnapMark/README.md). It's React Native 0.79 with `sn-plugin-lib`, plus a small Java module for the floating button and screen capture.
+- **Design notes:** [`SPIKES.md`](SPIKES.md) records the experiments behind every design decision, including undocumented PluginHost behaviour, which may be useful if you write your own plugin. [`SPEC.md`](SPEC.md) is the original plan.
+
+## Credits and license
+
+- **License:** MIT, see [LICENSE](LICENSE).
+- **Credits:** the floating button's overlay technique comes from [SuperDashboard](https://github.com/AgP42/SuperDashboard) (MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Not official:** SnapMark is an independent project, not affiliated with or endorsed by Ratta / Supernote.

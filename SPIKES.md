@@ -1,5 +1,7 @@
 # SnapMark: Phase 0 spikes
 
+These are the development notes behind SnapMark: what each experiment on a real Manta showed, and why the plugin is built the way it is. The throwaway spike plugin they mention isn't in this repository; its findings are recorded here.
+
 **Status (2026-10-15):** Phases 0–3 are done, and Phase 4 is closed with 4 of 5 v2 items (collect mode, export PNG, insert screenshot, margin mode). Snap region is deferred because it needs native code. A floating-bubble spike (section 1l) showed that a plugin with native code can capture any screen, in any app, and open it as a note in about 1.3 s. SnapMark 0.8.0 builds it in as the "Floating capture button" setting, verified from a third-party app, Ratta Settings, a PDF and a note (R67). Everything is verified on the Manta only; there is no Nomad. Section 0 has the Phase 0 answers, and sections 1b–1l the run-by-run evidence (R1–R68).
 
 ## 0. Phase 0 answers (Manta)
@@ -215,13 +217,13 @@ The spike is a separate throwaway plugin ("SnapMark Spike", its own `pluginID`),
 To rebuild and push yourself (from anywhere):
 
 ```bash
-cd /Users/cristianmateescu/Superscreenshot/SnapMarkSpike && ./buildPlugin.sh && adb push build/outputs/SnapMarkSpike.snplg /sdcard/MyStyle/
+cd SnapMarkSpike && ./buildPlugin.sh && adb push build/outputs/SnapMarkSpike.snplg /sdcard/MyStyle/
 ```
 
 **Log capture:** if the device stays connected over USB, I capture the full log from the Mac myself, so you don't need to do anything. Otherwise, capture it in its own terminal. Use `manta` or `nomad` in the filename. This filter now also catches native crashes (`PRETTY_LOGGER`) and the API allowlist checks:
 
 ```bash
-cd /Users/cristianmateescu/Superscreenshot/SnapMarkSpike && adb logcat -c && adb logcat -v time | grep --line-buffered -E 'ReactNativeJS|PRETTY_LOGGER|checkAPIAvailable|PluginApp|AndroidRuntime' | tee spike-manta.log
+cd SnapMarkSpike && adb logcat -c && adb logcat -v time | grep --line-buffered -E 'ReactNativeJS|PRETTY_LOGGER|checkAPIAvailable|PluginApp|AndroidRuntime' | tee spike-manta.log
 ```
 
 Then on the device, **in this order**:
@@ -250,11 +252,11 @@ Then on the device, **in this order**:
 When done, stop the log (Ctrl-C) and collect the outputs:
 
 ```bash
-adb pull /sdcard/EXPORT/SnapMarkSpike /Users/cristianmateescu/Superscreenshot/spike-out/manta
+adb pull /sdcard/EXPORT/SnapMarkSpike spike-out/manta
 ```
 
 ```bash
-grep '\[RESULT\]' /Users/cristianmateescu/Superscreenshot/SnapMarkSpike/spike-manta.log > /Users/cristianmateescu/Superscreenshot/spike-out/results-manta.txt
+grep '\[RESULT\]' SnapMarkSpike/spike-manta.log > spike-out/results-manta.txt
 ```
 
 Tell me when they're there and add your visual notes. I can read the log and the PNGs directly from `spike-out/`. The device can stay connected, since I can pull the full logcat myself if something crashes. Then repeat everything on the **Nomad**.
