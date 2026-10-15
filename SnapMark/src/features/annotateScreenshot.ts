@@ -7,12 +7,22 @@
 // createNote is allowed without the helper note. The floating button ends up here too (features/bubble).
 
 import { Image } from 'react-native';
+import { backlinkSpec } from '../core/backlink';
 import { fitInsetsDp } from '../core/fit';
-import { SCREENSHOT_DIR, SCREENSHOTS_SUBFOLDER, baseName, formatStamp, samePath, screenshotNoteCandidates, tmpDir } from '../core/paths';
+import {
+  SCREENSHOT_DIR,
+  SCREENSHOTS_SUBFOLDER,
+  baseName,
+  docTitle,
+  formatStamp,
+  samePath,
+  screenshotNoteCandidates,
+  tmpDir,
+} from '../core/paths';
 import { isFresh, newestFirst, type Screenshot } from '../core/screenshots';
 import { INBOX_NAME, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
-import { log } from '../platform/log';
+import { log, logError } from '../platform/log';
 import { Native } from '../platform/native';
 import { toast } from '../platform/toast';
 import { UserFacingError } from '../sdk/errors';
@@ -80,6 +90,16 @@ export interface SnapScreenshotOptions {
   isPortrait?: boolean;
   /** The image is already shrunk clear of the toolbar (the floating button's captures are). */
   fitted?: boolean;
+  /** Name the note after this instead of "Screenshot" (see core/paths captureSourceName). */
+  source?: string;
+  /** Captured from a document page: add the same "↩ <title>, p. N" link as Snap page does. */
+  backlink?: DocPage;
+}
+
+export interface DocPage {
+  docPath: string;
+  /** 0-based. */
+  page: number;
 }
 
 /** Makes the screenshot a note (or an inbox page) and returns that note's path. NOTE must be in front. */
@@ -92,7 +112,7 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
   }
   try {
     if (settings.collect) {
-      const inbox = await appendScreenshotToInbox(shot, page, isPortrait, settings, t);
+      const inbox = await appendScreenshotToInbox(shot, page, isPortrait, settings, t, opts.backlink);
       if (inbox) {
         await refillPool(await Sn.pluginDir());
         return inbox;
@@ -101,10 +121,15 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
     const dir = `${snapsDir(settings)}/${SCREENSHOTS_SUBFOLDER}`;
     await assertUnlocked(dir);
     await fs.makeDirs(dir);
-    const notePath = await firstFreePath(screenshotNoteCandidates(dir, formatStamp(shot.takenAt ?? new Date())));
+    const notePath = await firstFreePath(screenshotNoteCandidates(dir, formatStamp(shot.takenAt ?? new Date()), opts.source));
     t.mark('paths');
     await Sn.createNote(notePath, page, isPortrait);
     t.mark('createNote');
+    if (opts.backlink) {
+      // Before opening, so the note is finished when NOTE shows it (R56).
+      await addBacklink(notePath, 0, opts.backlink);
+      t.mark('link');
+    }
     if (settings.afterSnap === 'open') {
       await Sn.openFile(notePath, 0);
       t.mark('open');
@@ -144,6 +169,7 @@ async function appendScreenshotToInbox(
   isPortrait: boolean,
   settings: Settings,
   t: StepTimer,
+  backlink: DocPage | undefined,
 ): Promise<string | null> {
   const inbox = inboxPath(settings);
   await assertUnlocked(snapsDir(settings));
@@ -151,6 +177,9 @@ async function appendScreenshotToInbox(
   const open = settings.afterSnap === 'open';
   if (!(await fs.exists(inbox))) {
     await Sn.createNote(inbox, page, isPortrait); // we're in NOTE: allowed, and a fresh FILE_ID
+    if (backlink) {
+      await addBacklink(inbox, 0, backlink);
+    }
     if (open) {
       await Sn.openFile(inbox, 0);
     } else {
@@ -172,9 +201,15 @@ async function appendScreenshotToInbox(
       await waitUntilCurrent(inbox);
     }
     pageIndex = await appendToOpenInbox(inbox, page);
+    if (backlink) {
+      await addBacklink(inbox, pageIndex, backlink);
+    }
     await reloadAndShow(open ? pageIndex : null);
   } else {
     pageIndex = await appendToClosedInbox(inbox, page);
+    if (backlink) {
+      await addBacklink(inbox, pageIndex, backlink);
+    }
   }
   t.mark(`inbox page ${pageIndex + 1}`);
   if (!open) {
@@ -182,6 +217,22 @@ async function appendScreenshotToInbox(
   }
   log(`screenshot ${baseName(shot.path)} -> ${inbox} page ${pageIndex + 1} | ${t.summary()}`);
   return inbox;
+}
+
+/** At file level, like Snap page's backlink. The note is still useful without it, so failure only warns. */
+async function addBacklink(notePath: string, notePage: number, from: DocPage): Promise<void> {
+  try {
+    const size = await Sn.pageSize(notePath, notePage);
+    const link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
+    try {
+      await Sn.insertElements(notePath, notePage, [link]);
+    } finally {
+      Sn.recycle([link]);
+    }
+  } catch (e) {
+    logError('capture backlink (note kept without it)', e);
+    toast('Saved, but the link back to the page could not be added.', true);
+  }
 }
 
 /** RN's Image.getSize under-reports full-size screenshots (2× smaller) but keeps the aspect ratio (R39). */

@@ -4,6 +4,8 @@ import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -79,6 +81,11 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     /** Time for the compositor to drop the bubble before the capture (150 ms keeps it out, R60). */
     private static final int HIDE_MS = 150;
     private static final Pattern RESUMED = Pattern.compile("mResumedActivity: ActivityRecord\\{\\S+ u\\d+ (\\S+)/(\\S+)");
+    /** Button: a 22 dp icon in a 5 dp margin, ~5 mm across on a 300 dpi panel. */
+    private static final int ICON_DP = 22;
+    private static final int PAD_DP = 5;
+    /** Where the user last dragged the button, kept across PluginHost restarts and plugin updates. */
+    private static final String PREFS = "snapmark_bubble";
 
     // One bubble per process. Taps go to the newest React context (a plugin reload makes a new one).
     private static ReactApplicationContext currentContext;
@@ -120,13 +127,13 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
 
                 ImageView panel = new ImageView(ctx);
                 panel.setTag(BUBBLE_TAG);
-                panel.setImageBitmap(viewfinderIcon(dp(30)));
+                panel.setImageBitmap(viewfinderIcon(dp(ICON_DP)));
                 panel.setScaleType(ImageView.ScaleType.CENTER);
-                panel.setPadding(dp(8), dp(8), dp(8), dp(8));
+                panel.setPadding(dp(PAD_DP), dp(PAD_DP), dp(PAD_DP), dp(PAD_DP));
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(Color.WHITE);
-                bg.setCornerRadius(dp(16));
-                bg.setStroke(dp(2), Color.BLACK);
+                bg.setCornerRadius(dp(10));
+                bg.setStroke(Math.max(2, dp(1)), Color.BLACK);
                 panel.setBackground(bg);
 
                 // TRANSLUCENT, not OPAQUE: e-ink compositors fill an opaque window's rounded corners black.
@@ -137,8 +144,15 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                         PixelFormat.TRANSLUCENT);
                 overlayParams.gravity = Gravity.TOP | Gravity.START;
-                overlayParams.x = lastX >= 0 ? lastX : Math.max(0, screenW() - dp(90));
-                overlayParams.y = lastY >= 0 ? lastY : dp(260);
+                if (lastX < 0) {
+                    SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                    lastX = prefs.getInt("x", -1);
+                    lastY = prefs.getInt("y", -1);
+                }
+                int size = dp(ICON_DP + 2 * PAD_DP);
+                // Default: near the right edge. A saved spot is kept on screen (it may be from the other orientation).
+                overlayParams.x = clamp(lastX >= 0 ? lastX : screenW() - size - dp(24), 0, Math.max(0, screenW() - size));
+                overlayParams.y = clamp(lastY >= 0 ? lastY : dp(260), 0, Math.max(0, screenH() - size));
 
                 // Tap = capture, drag = move. No long-press: slow e-ink taps would trigger it.
                 panel.setOnTouchListener((v, ev) -> {
@@ -163,7 +177,11 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                             return true;
                         }
                         case MotionEvent.ACTION_UP:
-                            if (!dragging) onTap();
+                            if (dragging) {
+                                savePosition();
+                            } else {
+                                onTap();
+                            }
                             return true;
                         default:
                             return false;
@@ -191,6 +209,11 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void clearAllBubbles(Promise promise) {
         main.post(() -> promise.resolve(clearTaggedBubbles()));
+    }
+
+    private void savePosition() {
+        getReactApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putInt("x", lastX).putInt("y", lastY).apply();
     }
 
     private void onTap() {
@@ -417,7 +440,7 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
 
     // ---- Apps in front -------------------------------------------------------------------------
 
-    /** The app in front: {pkg, activity, taskId}. taskId is -1 if only dumpsys could tell. */
+    /** The app in front: {pkg, activity, label, taskId}. taskId is -1 if only dumpsys could tell. */
     @ReactMethod
     public void foreground(Promise promise) {
         new Thread(() -> {
@@ -433,6 +456,7 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                 m.putString("activity", resumed == null ? "" : resumed[1]);
                 m.putInt("taskId", -1);
             }
+            m.putString("label", appLabel(m.getString("pkg")));
             promise.resolve(m);
         }).start();
     }
@@ -512,6 +536,17 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void sleep(int ms, Promise promise) {
         main.postDelayed(() -> promise.resolve(true), ms);
+    }
+
+    /** The app's name as the launcher shows it ("" if unknown). */
+    private String appLabel(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return "";
+        try {
+            PackageManager pm = getReactApplicationContext().getPackageManager();
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private ActivityManager activityManager() {

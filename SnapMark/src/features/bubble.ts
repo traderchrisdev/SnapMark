@@ -5,28 +5,31 @@
 //
 // Until NOTE is in front only native calls are made: in other apps the SDK fails (118) or never
 // answers (Ratta Settings), R64. Settings and the plugin dir come from memory for the same reason.
+// The one exception is DOC, which answers like it does for Snap page: the document and page are read
+// there, so the note can be named after the book and link back to the page.
 
 import { DeviceEventEmitter } from 'react-native';
 import { PluginManager } from 'sn-plugin-lib';
-import { classifyApp, NOTE_PACKAGE } from '../core/apps';
+import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE } from '../core/apps';
 import { fitInsetsDp } from '../core/fit';
-import { baseName, hopNotePath, tmpDir } from '../core/paths';
+import { baseName, captureSourceName, hopNotePath, isDocumentPath, tmpDir, type CaptureSource } from '../core/paths';
 import { inboxPath, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
-import { log } from '../platform/log';
-import { BUBBLE_TAP_EVENT, Native } from '../platform/native';
+import { log, logError } from '../platform/log';
+import { BUBBLE_TAP_EVENT, Native, type FrontTask } from '../platform/native';
 import { hasFilePermissions } from '../platform/permissions';
 import { cachedSettings } from '../platform/settingsStore';
 import { CODE_NOTE_NOT_READY, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { setRoute } from '../ui/route';
-import { snapScreenshot } from './annotateScreenshot';
+import { snapScreenshot, type DocPage } from './annotateScreenshot';
 
 const SWITCH_TIMEOUT_MS = 4000;
 /** NOTE is in front a moment before PluginHost routes calls to it; meanwhile they fail with 118 (R65). */
 const READY_TIMEOUT_MS = 4000;
 const READY_RETRY_MS = 150;
+const DOC_READ_TIMEOUT_MS = 2000;
 const CAPTURE_PREFIX = 'capture-';
 
 let pluginDir: string | null = null;
@@ -70,6 +73,7 @@ export async function captureFromBubble(): Promise<void> {
   if (app === 'pluginHost') {
     throw new UserFacingError('Close the plugin screen first, then tap the button.');
   }
+  const doc = front.pkg === DOC_PACKAGE ? await readDocPage() : null;
   if (app === 'other') {
     await bringNoteToFront(settings);
     t.mark('NOTE in front');
@@ -81,8 +85,14 @@ export async function captureFromBubble(): Promise<void> {
       await PluginManager.showPluginView();
       return;
     }
+    const source = captureSourceName(await sourceOf(front, doc));
     lastNote = await whenNoteReady(() =>
-      snapScreenshot({ path: capture, takenAt }, settings, { isPortrait: shot.height >= shot.width, fitted: true }),
+      snapScreenshot({ path: capture, takenAt }, settings, {
+        isPortrait: shot.height >= shot.width,
+        fitted: true,
+        source,
+        backlink: doc ?? undefined,
+      }),
     );
     t.mark('note');
     if (app === 'other' && settings.afterSnap === 'stay' && front.taskId >= 0) {
@@ -93,6 +103,36 @@ export async function captureFromBubble(): Promise<void> {
   } finally {
     await removeCaptures(pluginDir);
   }
+}
+
+/** The open document and page, read while DOC is still in front. Null (no link) if DOC doesn't answer. */
+async function readDocPage(): Promise<DocPage | null> {
+  try {
+    const [docPath, page] = await Promise.race([
+      Promise.all([Sn.currentFilePath(), Sn.currentPage()]),
+      Native.sleep(DOC_READ_TIMEOUT_MS).then((): never => {
+        throw new UserFacingError(`no answer from DOC after ${DOC_READ_TIMEOUT_MS} ms`);
+      }),
+    ]);
+    return isDocumentPath(docPath) ? { docPath, page } : null;
+  } catch (e) {
+    logError('bubble: read document page (capturing without a link)', e);
+    return null;
+  }
+}
+
+/** NOTE must be in front (the open note is asked for when the capture was taken in NOTE). */
+async function sourceOf(front: FrontTask, doc: DocPage | null): Promise<CaptureSource> {
+  if (doc) {
+    return { kind: 'doc', path: doc.docPath, page: doc.page };
+  }
+  if (front.pkg === NOTE_PACKAGE) {
+    const note = await Sn.currentFilePath().catch(() => null);
+    if (note) {
+      return { kind: 'note', path: note };
+    }
+  }
+  return { kind: 'app', label: front.pkg === NOTE_PACKAGE ? '' : front.label };
 }
 
 /** Bring back NOTE's task (with whatever note it had open); if it has none, open a note we know. */

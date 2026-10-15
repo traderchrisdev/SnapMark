@@ -2,7 +2,9 @@
 
 A Supernote plugin: one tap turns what you're reading into a note you can write on, with a link back to where you were.
 
-**Status: SnapMark 0.8.0 adds the floating capture button** (2026-10-15): tap it in any app to turn the screen into a note to write on. Verified on the Manta with 0.8.0, tap → note open: **1.04 s** from QuickBible, **0.89 s** from Ratta Settings, **1.16 s** from a PDF, **0.77 s** from a note (SPIKES.md R67). Not yet tried on the device: "Stay here" (back to the app you came from), collect mode, the button coming back after a reboot, and landscape. SnapMark now has native code (`SnapMarkNativeModule.java`), so building needs a JDK and the Android SDK (see Build). Snap region, deferred from Phase 4, is now buildable too.
+**Status: SnapMark 0.9.0** (2026-10-15).
+- 0.9.0 makes the floating button smaller (about 5 mm) and makes it remember where you dragged it, also after a restart. Capture notes are named after their source, and captures of a PDF or EPUB page link back to it. Verified on the Manta: `eBiblia - <time>.note` from the Bible app (1.27 s), `<PDF title> - p186 - <time>.note` with a working ↩ link (1.57 s; the link adds ~0.5 s), and `<note title> - <time>.note` from a note (0.79 s).
+- 0.8.0 added the **floating capture button**: tap it in any app to turn the screen into a note to write on. Verified on the Manta with 0.8.0, tap → note open: **1.04 s** from QuickBible, **0.89 s** from Ratta Settings, **1.16 s** from a PDF, **0.77 s** from a note (SPIKES.md R67). Not yet tried on the device: "Stay here" (back to the app you came from), collect mode, the button coming back after a reboot, and landscape. SnapMark now has native code (`SnapMarkNativeModule.java`), so building needs a JDK and the Android SDK (see Build). Snap region, deferred from Phase 4, is now buildable too.
 
 Phase 4 (2026-10-14) closed with 4 of 5 v2 items. Verified on the Manta:
 - **Margin mode** (0.7.1): 3.3–3.4 s per snap; the page sits in the top-left ¾ with your scaled ink.
@@ -90,12 +92,17 @@ In any note (a snap, the inbox, or your own notes), tap **Export page as PNG** i
 
 ## Floating capture button
 
-Turn on **Floating capture button** in SnapMark's settings. A small button with a viewfinder icon then floats over every app: notes, documents, Kindle, the browser, Settings. Drag it to move it. **Tap it** and SnapMark:
+Turn on **Floating capture button** in SnapMark's settings. A small button with a viewfinder icon (about 5 mm) then floats over every app: notes, documents, Kindle, the browser, Settings. Drag it to move it; it stays where you leave it, also after a restart. **Tap it** and SnapMark:
 
 1. takes the button off the screen for a moment and captures the screen (the button isn't in the picture);
 2. shrinks the capture so the Notes toolbar and page bar won't cover it (setting **Notes toolbar**);
 3. brings the Notes app to the front (with the note it last had open) unless it's already there;
-4. makes the capture a note, exactly like **Annotate screenshot**: `Snaps/Screenshots/Screenshot - <time>.note`, or the next page of the Snaps inbox in collect mode. With **Open the snap** it opens; with **Stay here** it's saved and you're taken back to the app you were in.
+4. makes the capture a note, like **Annotate screenshot** does, in `Snaps/Screenshots/` (or the next page of the Snaps inbox in collect mode). The note is named after where the capture came from:
+   - `<Book> - p<N> - <time>.note` from a PDF or EPUB, with the same `↩ <Book>, p. N` link back to the page that Snap page adds;
+   - `<note title> - <time>.note` from a note;
+   - `<app name> - <time>.note` from any other app, e.g. `QuickBible - 2026-10-15 0751.note`.
+
+   With **Open the snap** it opens; with **Stay here** it's saved and you're taken back to the app you were in.
 
 Capture takes about 0.7–0.8 s, and the note is open about 1 s after the tap. The capture isn't saved in `SCREENSHOT/`; it's embedded in the note.
 
@@ -194,11 +201,14 @@ Manta (the only device available). Nomad support is written to be device-agnosti
 - [ ] **Export page as PNG:** write something on a snap, then tap **Export page as PNG** right away. `EXPORT/<title> - p1.png` shows the page with your fresh writing, and a toast confirms it. Exporting again gives ` (2)`.
 - [ ] **Annotate screenshot, toolbar fit:** the screenshot note shows the whole screenshot to the right of the toolbar and above the page bar. With **Notes toolbar → Full size** it fills the page as before.
 - [ ] **Floating button on/off:** turn it on in the settings; the button appears on the right. Turn it off; it goes away. After a PluginHost restart (or a reboot) it comes back on its own.
-- [ ] **Floating button from another app** (e.g. Kindle or QuickBible): tap it. Within about 1.5 s Notes opens a new `Screenshot - <time>.note` showing that app's screen, clear of the toolbar, without the button in the picture.
-- [ ] **Floating button from a PDF, from a note, from Settings:** each opens a new screenshot note. Settings is the case that hung in the spike.
+- [ ] **Floating button from another app** (e.g. Kindle or QuickBible): tap it. Within about 1.5 s Notes opens a new `<app name> - <time>.note` showing that app's screen, clear of the toolbar, without the button in the picture.
+- [ ] **Floating button from a PDF:** the note is `<Book> - p<N> - <time>.note` and has a `↩ <Book>, p. N` link at the bottom; tapping it opens the PDF on that page.
+- [ ] **Floating button from a note, from Settings:** each opens a new note, named after the note or "Settings". Settings is the case that hung in the spike.
+- [ ] **Floating button size and position:** it's about 5 mm across. Drag it somewhere else, restart PluginHost (`adb shell am force-stop com.ratta.supernote.pluginhost`, then open a note): it comes back where you left it.
 - [ ] **Floating button, Stay here:** with "After a snap → Stay here", tap it in another app: you're back in that app, with "Saved …".
 - [ ] **Floating button, collect mode:** with the inbox on, a tap adds the capture as the next inbox page.
 - [ ] **Floating button, drag:** dragging moves it and doesn't capture.
+- [ ] **Annotate screenshot naming:** a native screenshot still becomes `Screenshot - <time>.note` (its source isn't known).
 - [ ] **Settings persist:** change a setting, reinstall the plugin, and reopen the settings. The value is kept.
 - [ ] **Failure is visible:** e.g. snap while the Note folder is unavailable. You get a "Snap failed: …" toast and end up back on the document, not on the blank helper note.
 

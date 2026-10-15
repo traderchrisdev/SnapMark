@@ -13,6 +13,7 @@ import {
   samePath,
   sanitizeFolder,
   sanitizeName,
+  captureSourceName,
   screenshotNoteCandidates,
   settingsDir,
   snapNoteCandidates,
@@ -283,6 +284,15 @@ describe('floating capture button', () => {
     expect(fitInsetsDp('left')).toEqual({ left: 72, top: 0, right: 0, bottom: 72 });
     expect(fitInsetsDp('right')).toEqual({ left: 0, top: 0, right: 72, bottom: 72 });
     expect(fitInsetsDp('off')).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
+  });
+  it('names capture notes after the book page, the note, or the app they came from', () => {
+    expect(captureSourceName({ kind: 'doc', path: '/s/Document/The Pilgrim: Part 1.pdf', page: 11 })).toBe('The Pilgrim Part 1 - p12');
+    expect(captureSourceName({ kind: 'note', path: '/s/Note/Meeting notes.note' })).toBe('Meeting notes');
+    expect(captureSourceName({ kind: 'app', label: 'QuickBible' })).toBe('QuickBible');
+    expect(captureSourceName({ kind: 'app', label: '  ' })).toBe('Screenshot');
+    const it = screenshotNoteCandidates('/N/Snaps/Screenshots', '2026-10-15 0751', 'QuickBible');
+    expect(it.next().value).toBe('/N/Snaps/Screenshots/QuickBible - 2026-10-15 0751.note');
+    expect(it.next().value).toBe('/N/Snaps/Screenshots/QuickBible - 2026-10-15 0751 (2).note');
   });
   it('only lets NOTE create notes directly; DOC and other apps need NOTE brought up first', () => {
     expect(classifyApp(NOTE_PACKAGE)).toBe('note');

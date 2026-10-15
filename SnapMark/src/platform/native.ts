@@ -22,6 +22,8 @@ export interface Capture extends FittedImage {
 export interface FrontTask {
   pkg: string;
   activity: string;
+  /** The app's name as the launcher shows it ("" if unknown). */
+  label: string;
   /** -1 when only dumpsys could tell which app is in front. */
   taskId: number;
 }
