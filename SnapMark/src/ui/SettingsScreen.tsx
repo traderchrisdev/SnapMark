@@ -5,14 +5,22 @@ import { ScrollView, Text, TextInput, View } from 'react-native';
 import { PluginManager } from 'sn-plugin-lib';
 import { sanitizeFolder } from '../core/paths';
 import { MARGIN_CHOICES } from '../core/margin';
+import type { ScreenshotFit } from '../core/fit';
 import { DEFAULT_SETTINGS, FRESHNESS_CHOICES, type Settings } from '../core/settings';
+import { setBubble } from '../features/bubble';
 import { logError } from '../platform/log';
+import { Native } from '../platform/native';
 import { loadSettings, saveSetting } from '../platform/settingsStore';
 import { describeError } from '../sdk/errors';
 import { Button, Choice, Header, Section, styles } from './components';
 
 const freshnessOptions = FRESHNESS_CHOICES.map(m => ({ value: m as number, label: m === 0 ? 'Always ask' : `${m} min` }));
 const marginOptions = MARGIN_CHOICES.map(p => ({ value: p as number, label: p === 0 ? 'Off' : `${p}%` }));
+const fitOptions: { value: ScreenshotFit; label: string }[] = [
+  { value: 'left', label: 'On the left' },
+  { value: 'right', label: 'On the right' },
+  { value: 'off', label: 'Full size' },
+];
 
 export function SettingsScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -42,6 +50,16 @@ export function SettingsScreen() {
     } catch (e) {
       logError(`save ${key}`, e);
       setStatus(`Not saved: ${describeError(e)}`);
+    }
+  };
+
+  const switchBubble = async (on: boolean) => {
+    await update('bubble', on);
+    try {
+      await setBubble(on);
+    } catch (e) {
+      logError(`bubble ${on ? 'on' : 'off'}`, e);
+      setStatus(`Could not ${on ? 'show' : 'hide'} the button: ${describeError(e)}`);
     }
   };
 
@@ -144,6 +162,26 @@ export function SettingsScreen() {
 
       <Section label="Annotate screenshot" hint="Use the newest screenshot directly if it is newer than:">
         <Choice options={freshnessOptions} value={settings.screenshotFreshMinutes} onChange={v => update('screenshotFreshMinutes', v)} />
+      </Section>
+
+      {Native.available ? (
+        <Section
+          label="Floating capture button"
+          hint="Floats over every app. Tap it to capture the screen and write on it: it becomes a note (or an inbox page), like Annotate screenshot. Drag it to move it."
+        >
+          <Choice
+            options={[
+              { value: true, label: 'On' },
+              { value: false, label: 'Off' },
+            ]}
+            value={settings.bubble}
+            onChange={v => switchBubble(v)}
+          />
+        </Section>
+      ) : null}
+
+      <Section label="Notes toolbar" hint="Screenshot notes are shrunk so the toolbar and the page bar don't cover them.">
+        <Choice options={fitOptions} value={settings.screenshotFit} onChange={v => update('screenshotFit', v)} />
       </Section>
 
       <Text style={styles.status}>{status}</Text>

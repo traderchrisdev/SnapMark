@@ -20,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
+              add(SnapMarkPackage()) // floating capture button, screen capture (SnapMarkNativeModule)
             }
 
         override fun getJSMainModuleName(): String = "index"

@@ -2,7 +2,9 @@
 
 A Supernote plugin: one tap turns what you're reading into a note you can write on, with a link back to where you were.
 
-**Status: SnapMark 0.7.1. Phase 4 closed with 4 of 5 v2 items done** (2026-10-14). Snap region is deferred: cropping needs a Java module, which needs a JDK and Android Studio to build. Verified on the Manta:
+**Status: SnapMark 0.8.0 adds the floating capture button** (2026-10-15): tap it in any app to turn the screen into a note to write on. Verified on the Manta with 0.8.0, tap → note open: **1.04 s** from QuickBible, **0.89 s** from Ratta Settings, **1.16 s** from a PDF, **0.77 s** from a note (SPIKES.md R67). Not yet tried on the device: "Stay here" (back to the app you came from), collect mode, the button coming back after a reboot, and landscape. SnapMark now has native code (`SnapMarkNativeModule.java`), so building needs a JDK and the Android SDK (see Build). Snap region, deferred from Phase 4, is now buildable too.
+
+Phase 4 (2026-10-14) closed with 4 of 5 v2 items. Verified on the Manta:
 - **Margin mode** (0.7.1): 3.3–3.4 s per snap; the page sits in the top-left ¾ with your scaled ink.
 - **Insert screenshot** (0.6.0): 0.3 s; the screenshot lands at about 70% of the page, centered.
 - **Export page as PNG** (0.5.0): about 1 s; includes ink written just before the tap.
@@ -46,6 +48,8 @@ Open them from **Settings → Apps → Plugins → SnapMark → gear**.
 | My handwriting on the page | Copy as ink (default) or leave out |
 | Marker highlights | Underline (default) or leave out |
 | Annotate screenshot | Use the newest screenshot directly if it's newer than 2/5/10 (default)/30/60 min, or **Always ask** (always show the picker) |
+| Floating capture button | **Off** (default) or **On**: a button that floats over every app (see below) |
+| Notes toolbar | **On the left** (default), **On the right**, or **Full size**. Screenshot notes are shrunk (to about 93%) so the toolbar and the page bar don't cover them. |
 
 Settings are stored as empty folders in the plugin's private folder: a plugin can't write files from JS, and deleting anything in the shared folders would need the `FILE:DELETE` permission (SPIKES.md R43).
 
@@ -84,9 +88,37 @@ In a note, tap **Insert screenshot**. The newest screenshot (or the one you pick
 
 In any note (a snap, the inbox, or your own notes), tap **Export page as PNG** in the toolbar's Plugins menu. SnapMark saves the note first, so what's on screen is included, then writes the current page as `EXPORT/<note title> - p<N>.png`: the page image, all your ink and the link, flattened onto white at full resolution. A second export of the same page gets ` (2)`.
 
+## Floating capture button
+
+Turn on **Floating capture button** in SnapMark's settings. A small button with a viewfinder icon then floats over every app: notes, documents, Kindle, the browser, Settings. Drag it to move it. **Tap it** and SnapMark:
+
+1. takes the button off the screen for a moment and captures the screen (the button isn't in the picture);
+2. shrinks the capture so the Notes toolbar and page bar won't cover it (setting **Notes toolbar**);
+3. brings the Notes app to the front (with the note it last had open) unless it's already there;
+4. makes the capture a note, exactly like **Annotate screenshot**: `Snaps/Screenshots/Screenshot - <time>.note`, or the next page of the Snaps inbox in collect mode. With **Open the snap** it opens; with **Stay here** it's saved and you're taken back to the app you were in.
+
+Capture takes about 0.7–0.8 s, and the note is open about 1 s after the tap. The capture isn't saved in `SCREENSHOT/`; it's embedded in the note.
+
+**How it can do this.** The button and the capture are native code, which runs inside PluginHost, and PluginHost is a system app: it may draw over other apps and read the screen without asking (SPIKES.md R58). So SnapMark still asks only for file access, but its native code could do more than that. It's kept to what the button needs: show the button, capture the screen when you tap it, see which app is in front, bring Notes (or the app you came from) to the front, and open a note in Notes.
+
+Nothing is captured unless you tap the button. If the plugin is disabled or uninstalled while the button is showing, the next tap removes it.
+
 ## Build
 
-Requirements: Node ≥ 18, `zip`, and `jq` or `python3`. No JDK or Android SDK is needed, because SnapMark has no native code.
+Requirements:
+- Node ≥ 18, `zip`, and `jq` or `python3`;
+- JDK 17 (e.g. `brew install openjdk@17`), with `JAVA_HOME` pointing at it;
+- the Android SDK with platform 35 and build-tools 35.0.0. Android Studio is not needed: `brew install --cask android-commandlinetools`, then `sdkmanager "platforms;android-35" "build-tools;35.0.0"`. Gradle installs the NDK it needs on the first build.
+
+Tell Gradle where the SDK is, once per checkout (the file is git-ignored):
+
+```bash
+echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
+```
+
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+```
 
 ```bash
 npm install
@@ -100,7 +132,7 @@ npm run check
 npm run build:plugin
 ```
 
-The package is `build/outputs/SnapMark.snplg`. `PluginConfig.json` is maintained by hand. Never change `pluginID`; bump `versionCode` and `versionName` for each release.
+The package is `build/outputs/SnapMark.snplg`. The first build takes about 5 minutes, later ones seconds. `buildPlugin.sh` compiles the native module, ships it as `app.npk`, and adds `nativeCodePackage` and `reactPackages` to the packaged `PluginConfig.json`. The root `PluginConfig.json` is maintained by hand. Never change `pluginID`; bump `versionCode` and `versionName` for each release.
 
 ## Install on the device
 
@@ -110,6 +142,12 @@ adb push build/outputs/SnapMark.snplg /sdcard/MyStyle/
 
 Then on the device: **Settings → Apps → Plugins → Add Plugin → SnapMark.snplg → Install**. To update, install again over the old version.
 
+After an update, restart PluginHost. Otherwise it keeps running the previous version's native code. This also removes the floating button until SnapMark reloads and shows it again:
+
+```bash
+adb shell am force-stop com.ratta.supernote.pluginhost
+```
+
 ## Logs
 
 Every snap logs one line with step timings and the total time from tap to note open:
@@ -118,7 +156,7 @@ Every snap logs one line with step timings and the total time from tap to note o
 adb logcat -v time | grep --line-buffered -E 'SnapMark|PRETTY_LOGGER|AndroidRuntime'
 ```
 
-Example: `[SnapMark] snap page 176 -> …/Book - p176 - 2026-10-14 1302.note | tap→open: permissions 12 | context 40 | render 2165 | … | total 3410 ms`. `PRETTY_LOGGER` lines are PluginHost's own logs, including native crashes.
+Example: `[SnapMark] snap page 176 -> …/Book - p176 - 2026-10-14 1302.note | tap→open: permissions 12 | context 40 | render 2165 | … | total 3410 ms`. A floating-button tap logs `[SnapMark] bubble: <app in front> -> <note> (open) | capture (shot …, fit …, png …) … | NOTE in front … | note … | total … ms`. `PRETTY_LOGGER` lines are PluginHost's own logs, including native crashes.
 
 ## Manual test checklist
 
@@ -154,6 +192,13 @@ Manta (the only device available). Nomad support is written to be device-agnosti
   - After another snap, reopen the first one: the page picture is still there.
 - [ ] **Insert screenshot:** on an empty page of any note, tap **Insert screenshot**. The newest screenshot appears centered at about 70% of the page, you can write on and around it, and the lasso can select and resize it. With an old screenshot (or "Always ask") the picker title reads "Insert which screenshot?".
 - [ ] **Export page as PNG:** write something on a snap, then tap **Export page as PNG** right away. `EXPORT/<title> - p1.png` shows the page with your fresh writing, and a toast confirms it. Exporting again gives ` (2)`.
+- [ ] **Annotate screenshot, toolbar fit:** the screenshot note shows the whole screenshot to the right of the toolbar and above the page bar. With **Notes toolbar → Full size** it fills the page as before.
+- [ ] **Floating button on/off:** turn it on in the settings; the button appears on the right. Turn it off; it goes away. After a PluginHost restart (or a reboot) it comes back on its own.
+- [ ] **Floating button from another app** (e.g. Kindle or QuickBible): tap it. Within about 1.5 s Notes opens a new `Screenshot - <time>.note` showing that app's screen, clear of the toolbar, without the button in the picture.
+- [ ] **Floating button from a PDF, from a note, from Settings:** each opens a new screenshot note. Settings is the case that hung in the spike.
+- [ ] **Floating button, Stay here:** with "After a snap → Stay here", tap it in another app: you're back in that app, with "Saved …".
+- [ ] **Floating button, collect mode:** with the inbox on, a tap adds the capture as the next inbox page.
+- [ ] **Floating button, drag:** dragging moves it and doesn't capture.
 - [ ] **Settings persist:** change a setting, reinstall the plugin, and reopen the settings. The value is kept.
 - [ ] **Failure is visible:** e.g. snap while the Note folder is unavailable. You get a "Snap failed: …" toast and end up back on the document, not on the blank helper note.
 
@@ -168,6 +213,9 @@ Manta (the only device available). Nomad support is written to be device-agnosti
 | `src/core/margin.ts` | Margin-mode layout and scaling |
 | `src/features/pool.ts` | Blank notes made by `createNote` in the private dir, one per orientation |
 | `src/features/annotateScreenshot.ts` | Newest screenshot (or the picker) → its own note / inbox page, or a picture on the current page |
+| `src/features/bubble.ts` | Floating capture button: capture, bring Notes to the front, hand over to `snapScreenshot` |
+| `src/platform/native.ts` | Typed wrapper over SnapMark's native module |
+| `android/app/src/main/java/com/snapmark/SnapMarkNativeModule.java` | Native side: the floating button, screen capture, a fast gray PNG writer, app switching |
 | `src/ui/*` | Settings and picker screens (e-ink: no animation, large targets) |
 | `src/platform/settingsStore.ts` | Settings as folders in the plugin's private dir |
 | `src/sdk/sn.ts` | Typed wrapper over `sn-plugin-lib` (checks `APIResponse.success` and throws `SnApiError` with the API name and code) |

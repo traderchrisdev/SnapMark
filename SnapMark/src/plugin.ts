@@ -2,6 +2,7 @@
 
 import { PluginManager } from 'sn-plugin-lib';
 import { latestScreenshot, type ShotAction } from './features/annotateScreenshot';
+import { captureFromBubble, startBubble } from './features/bubble';
 import { exportCurrentPage } from './features/exportPng';
 import { snapPage } from './features/snapPage';
 import { log, logError } from './platform/log';
@@ -21,7 +22,8 @@ const BUTTON_EXPORT_PNG = 3;
 const BUTTON_INSERT_SCREENSHOT = 4;
 const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT]);
 
-// A run whose native call never answers must not lock the buttons forever.
+// One run at a time, from the toolbar buttons or the floating button. A run whose native call never
+// answers must not lock them forever.
 const STUCK_AFTER_MS = 60000;
 let runningSince: number | null = null;
 
@@ -54,22 +56,25 @@ async function run(id: number): Promise<void> {
   }
 }
 
-async function onPress(id: number): Promise<void> {
-  if (!BUTTONS.has(id)) {
-    return;
-  }
+async function exclusive(label: string, task: () => Promise<void>): Promise<void> {
   if (runningSince !== null && Date.now() - runningSince < STUCK_AFTER_MS) {
     toast('Still working on the last snap…');
     return;
   }
   runningSince = Date.now();
   try {
-    await run(id);
+    await task();
   } catch (e) {
-    logError(`button ${id}`, e);
+    logError(label, e);
     toast(`Snap failed: ${describeError(e)}`, true);
   } finally {
     runningSince = null;
+  }
+}
+
+async function onPress(id: number): Promise<void> {
+  if (BUTTONS.has(id)) {
+    await exclusive(`button ${id}`, () => run(id));
   }
 }
 
@@ -114,6 +119,10 @@ export async function startPlugin(icons: Icons): Promise<void> {
     entries => log(`stored settings: ${entries.length ? entries.join(', ') : '(none, using defaults)'}`),
     e => logError('read settings', e),
   );
+  const settings = await loadSettings(); // also fills the in-memory copy the floating button reads
+  startBubble(() => {
+    exclusive('bubble', captureFromBubble).catch(e => logError('bubble', e));
+  }, settings.bubble).catch(e => logError('start bubble', e));
   PluginManager.registerButtonListener({
     onButtonPress(event) {
       onPress(event.id).catch(e => logError('button', e));

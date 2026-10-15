@@ -1,9 +1,11 @@
 // User settings and their on-disk encoding. Pure, so it can be unit-tested.
 //
-// Neither RN core nor sn-plugin-lib can write a file from JS, and a native module would need a JDK
-// to build. FileUtils can make, list and delete folders, so each setting is stored as an empty
-// folder named "<key>=<URI-encoded JSON value>" in the plugin's private dir (see platform/settingsStore).
+// Neither RN core nor sn-plugin-lib can write a file from JS, but FileUtils can make, list and delete
+// folders, so each setting is stored as an empty folder named "<key>=<URI-encoded JSON value>" in the
+// plugin's private dir (see platform/settingsStore). It predates SnapMark's native module and still
+// works across plugin updates, so it stays.
 
+import { SCREENSHOT_FITS, type ScreenshotFit } from './fit';
 import type { HighlightStyle } from './highlights';
 import { MARGIN_CHOICES } from './margin';
 import { DEFAULT_SNAPS_FOLDER, sanitizeFolder, snapsDirFor } from './paths';
@@ -27,6 +29,10 @@ export interface Settings {
   marginPercent: number;
   /** A screenshot newer than this is used directly; otherwise the picker opens. 0 = always pick. */
   screenshotFreshMinutes: number;
+  /** The floating capture button over every app (SPIKES.md §1l). */
+  bubble: boolean;
+  /** Which side NOTE's toolbar is on, so screenshot notes are shrunk clear of it ("off": full size). */
+  screenshotFit: ScreenshotFit;
 }
 
 export const FRESHNESS_CHOICES = [0, 2, 5, 10, 30, 60] as const;
@@ -40,6 +46,8 @@ export const DEFAULT_SETTINGS: Settings = {
   collect: false,
   marginPercent: 0,
   screenshotFreshMinutes: 10,
+  bubble: false,
+  screenshotFit: 'left',
 };
 
 export function snapsDir(s: Settings): string {
@@ -66,6 +74,8 @@ const VALIDATE: Validators = {
   collect: bool,
   marginPercent: v => (typeof v === 'number' && (MARGIN_CHOICES as readonly number[]).includes(v) ? v : undefined),
   screenshotFreshMinutes: v => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 24 * 60 ? v : undefined),
+  bubble: bool,
+  screenshotFit: v => (SCREENSHOT_FITS as readonly unknown[]).includes(v) ? (v as ScreenshotFit) : undefined,
 };
 
 export function isSettingKey(k: string): k is keyof Settings {

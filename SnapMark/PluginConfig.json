@@ -1,9 +1,9 @@
 {
   "name": "SnapMark",
-  "desc": "Snap a document page or screenshot into a note and write on it. One tap there, one tap back.",
+  "desc": "Snap a document page, a screenshot or anything on screen into a note and write on it. One tap there, one tap back.",
   "iconPath": "assets/icon.png",
-  "versionName": "0.7.1",
-  "versionCode": "11",
+  "versionName": "0.8.0",
+  "versionCode": "12",
   "pluginID": "9bvxulmtahi7l78t",
   "pluginKey": "SnapMark",
   "jsMainPath": "index",

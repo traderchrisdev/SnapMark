@@ -1,4 +1,6 @@
+import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
 import { backlinkSpec, LINK_TYPE_DOCUMENT } from '../src/core/backlink';
+import { fitInsetsDp } from '../src/core/fit';
 import {
   docTitle,
   exportPngCandidates,
@@ -273,5 +275,28 @@ describe('margin mode', () => {
   it('is a stored, validated setting', () => {
     expect(decodeSettings([encodeSetting('marginPercent', 75)]).marginPercent).toBe(75);
     expect(decodeSettings([encodeSetting('marginPercent', 42)]).marginPercent).toBe(0);
+  });
+});
+
+describe('floating capture button', () => {
+  it('shrinks screenshots clear of the toolbar side and the page bar', () => {
+    expect(fitInsetsDp('left')).toEqual({ left: 72, top: 0, right: 0, bottom: 72 });
+    expect(fitInsetsDp('right')).toEqual({ left: 0, top: 0, right: 72, bottom: 72 });
+    expect(fitInsetsDp('off')).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
+  });
+  it('only lets NOTE create notes directly; DOC and other apps need NOTE brought up first', () => {
+    expect(classifyApp(NOTE_PACKAGE)).toBe('note');
+    expect(classifyApp(DOC_PACKAGE)).toBe('other');
+    expect(classifyApp('net.quickbible')).toBe('other');
+    expect(classifyApp('com.ratta.settings')).toBe('other');
+    expect(classifyApp(PLUGIN_HOST_PACKAGE)).toBe('pluginHost');
+  });
+  it('is off by default, fits for a left toolbar, and both are validated settings', () => {
+    expect(DEFAULT_SETTINGS.bubble).toBe(false);
+    expect(DEFAULT_SETTINGS.screenshotFit).toBe('left');
+    const s = decodeSettings([encodeSetting('bubble', true), encodeSetting('screenshotFit', 'right')]);
+    expect(s.bubble).toBe(true);
+    expect(s.screenshotFit).toBe('right');
+    expect(decodeSettings(['bubble=%22yes%22', 'screenshotFit=%22top%22'])).toMatchObject({ bubble: false, screenshotFit: 'left' });
   });
 });
