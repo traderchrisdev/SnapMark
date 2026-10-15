@@ -31,5 +31,10 @@ export function scalePoints(points: ReadonlyArray<Point>, layout: MarginLayout):
 }
 
 export function scaleThickness(thickness: number, layout: MarginLayout): number {
-  return Math.max(MIN_THICKNESS, Math.round(thickness * layout.scale));
+  return scaleThicknessBy(thickness, layout.scale);
+}
+
+/** Also used for strokes copied into a region snap. */
+export function scaleThicknessBy(thickness: number, scale: number): number {
+  return Math.max(MIN_THICKNESS, Math.round(thickness * scale));
 }

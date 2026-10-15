@@ -18,6 +18,7 @@ const icon = asset => Image.resolveAssetSource(asset).uri;
 
 startPlugin({
   snapPage: icon(require('./assets/icon-snap-page.png')),
+  snapRegion: icon(require('./assets/icon-snap-region.png')),
   annotateScreenshot: icon(require('./assets/icon-annotate-screenshot.png')),
   exportPng: icon(require('./assets/icon-export-png.png')),
   insertScreenshot: icon(require('./assets/icon-insert-screenshot.png')),

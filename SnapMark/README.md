@@ -2,7 +2,12 @@
 
 A Supernote plugin: one tap turns what you're reading into a note you can write on, with a link back to where you were.
 
-**Status: SnapMark 0.9.0** (2026-10-15).
+**Status: SnapMark 0.11.3** (2026-10-15).
+- 0.11 adds **Snap region**: drag a box over part of the screen or page. It works from the floating button (any app) and from a new **Snap region** button in the PDF/EPUB toolbar.
+  - In a document, the cut comes from a clean render of the page, and your handwriting inside the box stays editable ink (SPIKES.md R70).
+  - Finger taps on the floating button work, and it starts on Notes' file name at the bottom right, where a pen tap doesn't leave ink (R72, R73).
+  - Verified on the Manta in 0.11.2: a region from a PDF with 13 strokes kept as ink plus the ↩ link, about 1 s after "Snap region"; Whole screen from QuickBible; Cancel; finger taps in a note and in QuickBible.
+  - 0.11.3 only changes how capture notes are named (no stacked timestamps), and is unit-tested.
 - 0.9.0 makes the floating button smaller (about 5 mm) and makes it remember where you dragged it, also after a restart. Capture notes are named after their source, and captures of a PDF or EPUB page link back to it. Verified on the Manta: `eBiblia - <time>.note` from the Bible app (1.27 s), `<PDF title> - p186 - <time>.note` with a working ↩ link (1.57 s; the link adds ~0.5 s), and `<note title> - <time>.note` from a note (0.79 s).
 - 0.8.0 added the **floating capture button**: tap it in any app to turn the screen into a note to write on. Verified on the Manta with 0.8.0, tap → note open: **1.04 s** from QuickBible, **0.89 s** from Ratta Settings, **1.16 s** from a PDF, **0.77 s** from a note (SPIKES.md R67). Not yet tried on the device: "Stay here" (back to the app you came from), collect mode, the button coming back after a reboot, and landscape. SnapMark now has native code (`SnapMarkNativeModule.java`), so building needs a JDK and the Android SDK (see Build). Snap region, deferred from Phase 4, is now buildable too.
 
@@ -51,6 +56,7 @@ Open them from **Settings → Apps → Plugins → SnapMark → gear**.
 | Marker highlights | Underline (default) or leave out |
 | Annotate screenshot | Use the newest screenshot directly if it's newer than 2/5/10 (default)/30/60 min, or **Always ask** (always show the picker) |
 | Floating capture button | **Off** (default) or **On**: a button that floats over every app (see below) |
+| When I tap the floating button | **Choose a region** (default): the screen is shown to drag a box over; **Whole screen right away**: no selection screen |
 | Notes toolbar | **On the left** (default), **On the right**, or **Full size**. Screenshot notes are shrunk (to about 93%) so the toolbar and the page bar don't cover them. |
 
 Settings are stored as empty folders in the plugin's private folder: a plugin can't write files from JS, and deleting anything in the shared folders would need the `FILE:DELETE` permission (SPIKES.md R43).
@@ -90,12 +96,32 @@ In a note, tap **Insert screenshot**. The newest screenshot (or the one you pick
 
 In any note (a snap, the inbox, or your own notes), tap **Export page as PNG** in the toolbar's Plugins menu. SnapMark saves the note first, so what's on screen is included, then writes the current page as `EXPORT/<note title> - p<N>.png`: the page image, all your ink and the link, flattened onto white at full resolution. A second export of the same page gets ` (2)`.
 
+## Snap region
+
+In a PDF or EPUB, tap **Snap region**. The selection screen (`src/ui/RegionScreen.tsx`) shows the page as it is on screen. Drag a box with your finger or the pen; drag a corner to adjust it. Then:
+
+- **Snap region:** the box becomes a note.
+  - **The image:** the clean page render (rendered in the background while you draw), cut to the box. It's placed at the top of a fresh page, centered beside the toolbar and enlarged up to 2×, and never taller than ¾ of the page (`src/core/region.ts`).
+  - **Your ink:** strokes on the page with at least half their points inside the box are copied as real strokes, moved and scaled with the cut-out. Shapes aren't copied.
+  - **The link:** `↩ <Book>, p. N` at the bottom; the note is named `<Book> - p<N> - <time>.note`.
+- **Whole page:** a normal Snap page.
+- **Cancel:** back to the page.
+
+While the selection screen is up, NOTE and DOC turn pen drawing off. Closing a plugin screen doesn't always turn it back on, so SnapMark calls PluginHost's `showPluginView(0)` by reflection (`releasePenLock`, SPIKES.md R71).
+
 ## Floating capture button
 
-Turn on **Floating capture button** in SnapMark's settings. A small button with a viewfinder icon (about 5 mm) then floats over every app: notes, documents, Kindle, the browser, Settings. Drag it to move it; it stays where you leave it, also after a restart. **Tap it** and SnapMark:
+Turn on **Floating capture button** in SnapMark's settings. A small button with a viewfinder icon (about 5 mm) then floats over every app: notes, documents, Kindle, the browser, Settings. Drag it to move it; it stays where you leave it, also after a restart.
+
+**Where it sits:**
+- It starts on the file name at the bottom right of a note. That's one of the areas where Notes keeps the pen from writing (R73).
+- Over a page, a pen tap on the button also writes a dot of ink below it: the pen draws below every window and can't be stopped from a plugin.
+- Finger taps never write.
+
+**Tap it** (finger or pen) and SnapMark:
 
 1. takes the button off the screen for a moment and captures the screen (the button isn't in the picture);
-2. shrinks the capture so the Notes toolbar and page bar won't cover it (setting **Notes toolbar**);
+2. by default, shows the capture on the selection screen to drag a box over (**Whole screen** keeps it all). With **When I tap the floating button → Whole screen right away**, it skips this step and shrinks the capture so the Notes toolbar and page bar won't cover it (setting **Notes toolbar**). **In a PDF or EPUB it does Snap region instead** (or Snap page when skipping the selection screen), so your ink stays editable;
 3. brings the Notes app to the front (with the note it last had open) unless it's already there;
 4. makes the capture a note, like **Annotate screenshot** does, in `Snaps/Screenshots/` (or the next page of the Snaps inbox in collect mode). The note is named after where the capture came from:
    - `<Book> - p<N> - <time>.note` from a PDF or EPUB, with the same `↩ <Book>, p. N` link back to the page that Snap page adds;
@@ -208,6 +234,15 @@ Manta (the only device available). Nomad support is written to be device-agnosti
 - [ ] **Floating button, Stay here:** with "After a snap → Stay here", tap it in another app: you're back in that app, with "Saved …".
 - [ ] **Floating button, collect mode:** with the inbox on, a tap adds the capture as the next inbox page.
 - [ ] **Floating button, drag:** dragging moves it and doesn't capture.
+- [ ] **Floating button, finger:** a finger tap captures (the log says `bubble tapped by finger`).
+- [ ] **Floating button, pen on the file name:** with the button on a note's file name at the bottom right, a pen tap captures and leaves no ink.
+- [ ] **Region from the floating button** (QuickBible): drag a box over two verses, **Snap region**. The note shows just that part at the top, readable and clear of the toolbar.
+- [ ] **Snap region in a PDF:**
+  - Box an area that includes some of your handwriting.
+  - The note shows a clean cut, and your strokes sit on the same words and can be erased.
+  - The ↩ link opens the PDF on that page.
+- [ ] **Whole page / Whole screen** on the selection screen: a normal Snap page in a PDF; the full screen elsewhere.
+- [ ] **Cancel, then write:** after Cancel over a note or a PDF, the pen writes normally.
 - [ ] **Annotate screenshot naming:** a native screenshot still becomes `Screenshot - <time>.note` (its source isn't known).
 - [ ] **Settings persist:** change a setting, reinstall the plugin, and reopen the settings. The value is kept.
 - [ ] **Failure is visible:** e.g. snap while the Note folder is unavailable. You get a "Snap failed: …" toast and end up back on the document, not on the blank helper note.
@@ -223,9 +258,13 @@ Manta (the only device available). Nomad support is written to be device-agnosti
 | `src/core/margin.ts` | Margin-mode layout and scaling |
 | `src/features/pool.ts` | Blank notes made by `createNote` in the private dir, one per orientation |
 | `src/features/annotateScreenshot.ts` | Newest screenshot (or the picker) → its own note / inbox page, or a picture on the current page |
-| `src/features/bubble.ts` | Floating capture button: capture, bring Notes to the front, hand over to `snapScreenshot` |
+| `src/features/bubble.ts` | Floating capture button: capture, the selection screen, hand over to `capture.ts` (or Snap region in a document) |
+| `src/features/snapRegion.ts` | Snap region in a document: render in the background, cut to the box, copy the ink inside it |
+| `src/features/capture.ts` | Shared by both: close the selection screen and release the pen, bring Notes to the front, make the note, clean up |
+| `src/features/region.ts`, `src/ui/RegionScreen.tsx` | The selection screen and the hand-off of its answer |
+| `src/core/region.ts` | Selection and placement math (unit-tested) |
 | `src/platform/native.ts` | Typed wrapper over SnapMark's native module |
-| `android/app/src/main/java/com/snapmark/SnapMarkNativeModule.java` | Native side: the floating button, screen capture, a fast gray PNG writer, app switching |
+| `android/app/src/main/java/com/snapmark/SnapMarkNativeModule.java` | Native side: the floating button, screen capture, crop and placement, a fast gray PNG writer, app switching, releasing the pen after a plugin screen |
 | `src/ui/*` | Settings and picker screens (e-ink: no animation, large targets) |
 | `src/platform/settingsStore.ts` | Settings as folders in the plugin's private dir |
 | `src/sdk/sn.ts` | Typed wrapper over `sn-plugin-lib` (checks `APIResponse.success` and throws `SnApiError` with the API name and code) |

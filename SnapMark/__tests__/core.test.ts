@@ -2,6 +2,19 @@ import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../
 import { backlinkSpec, LINK_TYPE_DOCUMENT } from '../src/core/backlink';
 import { fitInsetsDp } from '../src/core/fit';
 import {
+  boxFrom,
+  boxToCapturePx,
+  captureToPage,
+  containFrame,
+  insetsToPx,
+  isBigEnough,
+  mapToRegion,
+  mostlyInside,
+  oppositeCorner,
+  regionPlacement,
+  regionScale,
+} from '../src/core/region';
+import {
   docTitle,
   exportPngCandidates,
   formatStamp,
@@ -288,6 +301,8 @@ describe('floating capture button', () => {
   it('names capture notes after the book page, the note, or the app they came from', () => {
     expect(captureSourceName({ kind: 'doc', path: '/s/Document/The Pilgrim: Part 1.pdf', page: 11 })).toBe('The Pilgrim Part 1 - p12');
     expect(captureSourceName({ kind: 'note', path: '/s/Note/Meeting notes.note' })).toBe('Meeting notes');
+    expect(captureSourceName({ kind: 'note', path: '/s/Note/Snaps/Screenshots/eBiblia - 2026-10-15 1514.note' })).toBe('eBiblia');
+    expect(captureSourceName({ kind: 'note', path: '/s/Note/Snaps/Book - p9 - 2026-10-15 1505 (2).note' })).toBe('Book - p9');
     expect(captureSourceName({ kind: 'app', label: 'QuickBible' })).toBe('QuickBible');
     expect(captureSourceName({ kind: 'app', label: '  ' })).toBe('Screenshot');
     const it = screenshotNoteCandidates('/N/Snaps/Screenshots', '2026-10-15 0751', 'QuickBible');
@@ -308,5 +323,71 @@ describe('floating capture button', () => {
     expect(s.bubble).toBe(true);
     expect(s.screenshotFit).toBe('right');
     expect(decodeSettings(['bubble=%22yes%22', 'screenshotFit=%22top%22'])).toMatchObject({ bubble: false, screenshotFit: 'left' });
+  });
+});
+
+describe('choose a region', () => {
+  const manta = { width: 1920, height: 2560 };
+  it('shows the capture letterboxed in the screen area and maps a box back to capture pixels', () => {
+    const frame = containFrame({ width: 1024, height: 1269 }, manta); // the area below the button bar, in dp
+    expect(frame.top).toBe(0);
+    expect(frame.bottom).toBe(1269);
+    expect(Math.round(frame.left)).toBe(36);
+    const box = { left: frame.left + 100, top: 200, right: frame.left + 500, bottom: 400 };
+    const px = boxToCapturePx(box, frame, manta);
+    expect(px.left).toBe(Math.round(100 * (1920 / (frame.right - frame.left))));
+    expect(Math.abs(px.bottom - px.top - 200 * (2560 / 1269))).toBeLessThanOrEqual(1); // edges rounded separately
+  });
+  it('clamps a box that runs off the image', () => {
+    const frame = { left: 0, top: 0, right: 960, bottom: 1280 };
+    expect(boxToCapturePx({ left: -10, top: -10, right: 2000, bottom: 2000 }, frame, manta)).toEqual({ left: 0, top: 0, right: 1920, bottom: 2560 });
+  });
+  it('draws from any corner, adjusts from the nearest one, and ignores slips', () => {
+    expect(boxFrom({ x: 50, y: 80 }, { x: 10, y: 20 })).toEqual({ left: 10, top: 20, right: 50, bottom: 80 });
+    const box = { left: 100, top: 100, right: 300, bottom: 200 };
+    expect(oppositeCorner(box, { x: 295, y: 205 }, 40)).toEqual({ x: 100, y: 100 });
+    expect(oppositeCorner(box, { x: 200, y: 150 }, 40)).toBeNull();
+    expect(isBigEnough({ left: 0, top: 0, right: 30, bottom: 10 }, 24)).toBe(false);
+  });
+  it('puts a small cut-out at the top, enlarged at most 2x, beside the toolbar', () => {
+    const insets = insetsToPx({ left: 72, top: 0, right: 0, bottom: 72 }, 1.875); // 135 px
+    const dst = regionPlacement(manta, { left: 0, top: 0, right: 400, bottom: 100 }, insets, 45);
+    expect(dst.right - dst.left).toBe(800);
+    expect(dst.top).toBe(45);
+    expect(dst.left).toBeGreaterThan(135);
+  });
+  it('fits a wide cut-out to the width and a tall one to three quarters of the page', () => {
+    const insets = { left: 135, top: 0, right: 0, bottom: 135 };
+    const wide = regionPlacement(manta, { left: 0, top: 0, right: 1920, bottom: 600 }, insets, 45);
+    expect(wide.left).toBe(180);
+    expect(wide.right).toBe(1920 - 45);
+    const tall = regionPlacement(manta, { left: 0, top: 0, right: 600, bottom: 2400 }, insets, 45);
+    expect(tall.bottom - tall.top).toBe(Math.round((2560 - 135 - 90) * 0.75));
+  });
+  it('is the default floating-button action, and validated', () => {
+    expect(DEFAULT_SETTINGS.bubbleAction).toBe('region');
+    expect(decodeSettings([encodeSetting('bubbleAction', 'whole')]).bubbleAction).toBe('whole');
+    expect(decodeSettings(['bubbleAction=%22zoom%22']).bubbleAction).toBe('region');
+  });
+});
+
+describe('snap region in a document', () => {
+  it('maps the box from the screen capture to the page (same frame on the Manta)', () => {
+    const box = { left: 100, top: 200, right: 900, bottom: 600 };
+    expect(captureToPage(box, { width: 1920, height: 2560 }, { width: 1920, height: 2560 })).toEqual(box);
+    expect(captureToPage(box, { width: 1920, height: 2560 }, { width: 960, height: 1280 })).toEqual({ left: 50, top: 100, right: 450, bottom: 300 });
+  });
+  it('moves ink into the placed cut-out, scaled with it', () => {
+    const crop = { left: 100, top: 200, right: 500, bottom: 300 };
+    const dst = { left: 180, top: 45, right: 980, bottom: 245 };
+    expect(regionScale(crop, dst)).toBe(2);
+    expect(mapToRegion({ x: 100, y: 200 }, crop, dst)).toEqual({ x: 180, y: 45 });
+    expect(mapToRegion({ x: 300, y: 250 }, crop, dst)).toEqual({ x: 580, y: 145 });
+  });
+  it('takes a stroke when at least half of it is inside the box', () => {
+    const box = { left: 0, top: 0, right: 100, bottom: 100 };
+    expect(mostlyInside([{ x: 10, y: 10 }, { x: 50, y: 50 }, { x: 150, y: 50 }], box)).toBe(true);
+    expect(mostlyInside([{ x: 10, y: 10 }, { x: 150, y: 50 }, { x: 160, y: 50 }], box)).toBe(false);
+    expect(mostlyInside([], box)).toBe(false);
   });
 });

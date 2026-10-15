@@ -265,7 +265,7 @@ async function viaHelperNote(snap: Snap, pluginDir: string, isPortrait: boolean,
  * Strokes and shapes on the document page, retargeted to page 0 / main layer of the snap.
  * Marker strokes become underlines (or are dropped): copied as markers they'd hide the text (R41).
  */
-async function readHandwriting(docPath: string, page: number, pageSize: Size, highlights: HighlightStyle): Promise<Element[]> {
+export async function readHandwriting(docPath: string, page: number, pageSize: Size, highlights: HighlightStyle): Promise<Element[]> {
   const all = await Sn.pageElements(docPath, page).catch(e => {
     logError('read handwriting (snapping without it)', e);
     return [] as Element[];

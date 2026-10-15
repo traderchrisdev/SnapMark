@@ -4,8 +4,13 @@
 import { useEffect, useState } from 'react';
 import type { Screenshot } from '../core/screenshots';
 import type { ShotAction } from '../features/annotateScreenshot';
+import type { RegionRequest } from '../features/region';
 
-export type Route = { name: 'settings' } | { name: 'picker'; shots: Screenshot[]; action: ShotAction } | { name: 'permission' };
+export type Route =
+  | { name: 'settings' }
+  | { name: 'picker'; shots: Screenshot[]; action: ShotAction }
+  | { name: 'permission' }
+  | { name: 'region'; request: RegionRequest };
 
 let current: Route = { name: 'settings' };
 const listeners = new Set<(r: Route) => void>();

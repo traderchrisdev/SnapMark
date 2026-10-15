@@ -86,6 +86,16 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     private static final int PAD_DP = 5;
     /** Where the user last dragged the button, kept across PluginHost restarts and plugin updates. */
     private static final String PREFS = "snapmark_bubble";
+    /** Movement (dp) that turns a touch into a drag. A fingertip wobbles more than the pen nib. */
+    private static final int PEN_SLOP_DP = 8;
+    private static final int FINGER_SLOP_DP = 16;
+    /**
+     * Default spot: inside NOTE's file-name box at the bottom right, one of the areas where NOTE keeps
+     * the pen from writing (the box is x 1042..1792, y 2444..2560 on the Manta: 68 dp from the right,
+     * 62 dp high). Elsewhere over a page, a pen tap on the button also leaves a dot of ink below it.
+     */
+    private static final int DOCK_RIGHT_DP = 68;
+    private static final int DOCK_BAR_DP = 62;
 
     // One bubble per process. Taps go to the newest React context (a plugin reload makes a new one).
     private static ReactApplicationContext currentContext;
@@ -98,6 +108,8 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     private int startX, startY;
     private float startRawX, startRawY;
     private boolean dragging;
+    private int slop;
+    private float moved;
 
     public SnapMarkNativeModule(ReactApplicationContext context) {
         super(context);
@@ -150,9 +162,11 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                     lastY = prefs.getInt("y", -1);
                 }
                 int size = dp(ICON_DP + 2 * PAD_DP);
-                // Default: near the right edge. A saved spot is kept on screen (it may be from the other orientation).
-                overlayParams.x = clamp(lastX >= 0 ? lastX : screenW() - size - dp(24), 0, Math.max(0, screenW() - size));
-                overlayParams.y = clamp(lastY >= 0 ? lastY : dp(260), 0, Math.max(0, screenH() - size));
+                // A saved spot is kept on screen (it may be from the other orientation).
+                int dockX = screenW() - dp(DOCK_RIGHT_DP) - size - dp(4);
+                int dockY = screenH() - (dp(DOCK_BAR_DP) + size) / 2;
+                overlayParams.x = clamp(lastX >= 0 ? lastX : dockX, 0, Math.max(0, screenW() - size));
+                overlayParams.y = clamp(lastY >= 0 ? lastY : dockY, 0, Math.max(0, screenH() - size));
 
                 // Tap = capture, drag = move. No long-press: slow e-ink taps would trigger it.
                 panel.setOnTouchListener((v, ev) -> {
@@ -163,10 +177,13 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                             startRawX = ev.getRawX();
                             startRawY = ev.getRawY();
                             dragging = false;
+                            moved = 0;
+                            slop = dp(ev.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER ? FINGER_SLOP_DP : PEN_SLOP_DP);
                             return true;
                         case MotionEvent.ACTION_MOVE: {
                             float dx = ev.getRawX() - startRawX, dy = ev.getRawY() - startRawY;
-                            if (!dragging && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) dragging = true;
+                            moved = Math.max(moved, Math.max(Math.abs(dx), Math.abs(dy)));
+                            if (!dragging && moved > slop) dragging = true;
                             if (dragging) {
                                 overlayParams.x = clamp(startX + (int) dx, 0, Math.max(0, screenW() - v.getWidth()));
                                 overlayParams.y = clamp(startY + (int) dy, 0, Math.max(0, screenH() - v.getHeight()));
@@ -177,11 +194,16 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                             return true;
                         }
                         case MotionEvent.ACTION_UP:
+                            Log.i(TAG, "bubble " + (dragging ? "dragged" : "tapped") + " by " + toolName(ev.getToolType(0))
+                                    + " (moved " + Math.round(moved) + " px, slop " + slop + ")");
                             if (dragging) {
                                 savePosition();
                             } else {
                                 onTap();
                             }
+                            return true;
+                        case MotionEvent.ACTION_CANCEL:
+                            Log.i(TAG, "bubble touch cancelled (" + toolName(ev.getToolType(0)) + ", moved " + Math.round(moved) + " px)");
                             return true;
                         default:
                             return false;
@@ -209,6 +231,15 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void clearAllBubbles(Promise promise) {
         main.post(() -> promise.resolve(clearTaggedBubbles()));
+    }
+
+    private static String toolName(int toolType) {
+        switch (toolType) {
+            case MotionEvent.TOOL_TYPE_FINGER: return "finger";
+            case MotionEvent.TOOL_TYPE_STYLUS: return "pen";
+            case MotionEvent.TOOL_TYPE_ERASER: return "pen eraser";
+            default: return "tool " + toolType;
+        }
     }
 
     private void savePosition() {
@@ -339,6 +370,44 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         }).start();
     }
 
+    /**
+     * "Choose a region": the `crop` part of srcPath (px) drawn into `dst` (px) of a white page the size
+     * of the source, written as a gray PNG. The placement is worked out in JS (core/region.ts).
+     */
+    @ReactMethod
+    public void cropInto(String srcPath, String outPath, ReadableMap crop, ReadableMap dst, Promise promise) {
+        new Thread(() -> {
+            try {
+                long t0 = SystemClock.uptimeMillis();
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                Bitmap src = BitmapFactory.decodeFile(srcPath, o);
+                if (src == null) throw new IOException("cannot decode " + srcPath);
+                int w = src.getWidth(), h = src.getHeight();
+                Bitmap page = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas cv = new Canvas(page);
+                cv.drawColor(Color.WHITE);
+                cv.drawBitmap(src,
+                        new Rect(crop.getInt("left"), crop.getInt("top"), crop.getInt("right"), crop.getInt("bottom")),
+                        new RectF(dst.getInt("left"), dst.getInt("top"), dst.getInt("right"), dst.getInt("bottom")),
+                        new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
+                src.recycle();
+                long e0 = SystemClock.uptimeMillis();
+                writeGrayPng(page, new File(outPath));
+                page.recycle();
+                WritableMap m = Arguments.createMap();
+                m.putInt("width", w);
+                m.putInt("height", h);
+                m.putDouble("encodeMs", SystemClock.uptimeMillis() - e0);
+                m.putDouble("totalMs", SystemClock.uptimeMillis() - t0);
+                promise.resolve(m);
+            } catch (Throwable e) {
+                Log.e(TAG, "cropInto failed", e);
+                promise.reject("E_CROP", e.toString(), e);
+            }
+        }).start();
+    }
+
     /** Recycles src. */
     private WritableMap fitAndWrite(Bitmap src, File out, ReadableMap insetsDp) throws IOException {
         long k0 = SystemClock.uptimeMillis();
@@ -438,6 +507,43 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         os.writeInt((int) crc.getValue());
     }
 
+    // ---- Pen after a plugin screen ---------------------------------------------------------------
+
+    /**
+     * While a plugin screen is shown, NOTE and DOC switch the pen's drawing off for the whole screen,
+     * and closePluginView doesn't always switch it back on (SuperDashboard's findings). PluginHost's
+     * showPluginView(0) does: it makes NOTE recompute its pen-off areas. That overload isn't in the SDK,
+     * so it's called by reflection. Resolves false if this firmware doesn't have it.
+     */
+    @ReactMethod
+    @SuppressWarnings("deprecation")
+    public void releasePenLock(Promise promise) {
+        main.post(() -> {
+            try {
+                Object pm = getReactApplicationContext().getCatalystInstance().getNativeModule("NativePluginManager");
+                if (pm == null) {
+                    promise.resolve(false);
+                    return;
+                }
+                Object app = pm.getClass().getMethod("getPluginApp").invoke(pm);
+                if (app != null) {
+                    for (Method m : app.getClass().getMethods()) {
+                        Class<?>[] ps = m.getParameterTypes();
+                        if (m.getName().equals("showPluginView") && ps.length == 1 && (ps[0] == int.class || ps[0] == Integer.class)) {
+                            m.invoke(app, 0);
+                            promise.resolve(true);
+                            return;
+                        }
+                    }
+                }
+                promise.resolve(false);
+            } catch (Throwable t) {
+                Log.w(TAG, "releasePenLock: " + t);
+                promise.reject("E_PEN_LOCK", t.toString(), t);
+            }
+        });
+    }
+
     // ---- Apps in front -------------------------------------------------------------------------
 
     /** The app in front: {pkg, activity, label, taskId}. taskId is -1 if only dumpsys could tell. */
@@ -510,17 +616,21 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         }
     }
 
-    /** Poll until `pkg` is in front. Resolves the ms waited, or -1 on timeout. */
+    /**
+     * Poll until `pkg` is in front. Resolves the ms waited, or -1 on timeout. "In front" means its
+     * activity is resumed: after moveTaskToFront the task list says so ~150 ms earlier, while the
+     * previous app still gets the SDK's calls (run 0.11.0: createNote refused with 102 by DOC).
+     */
     @ReactMethod
     public void waitForForeground(String pkg, int timeoutMs, Promise promise) {
         new Thread(() -> {
             long t0 = SystemClock.uptimeMillis();
             while (SystemClock.uptimeMillis() - t0 < timeoutMs) {
-                ActivityManager.RunningTaskInfo top = topTask();
-                String front = top != null && top.topActivity != null ? top.topActivity.getPackageName() : null;
+                String[] resumed = dumpsysResumed();
+                String front = resumed != null ? resumed[0] : null;
                 if (front == null) {
-                    String[] resumed = dumpsysResumed();
-                    front = resumed == null ? null : resumed[0];
+                    ActivityManager.RunningTaskInfo top = topTask();
+                    front = top != null && top.topActivity != null ? top.topActivity.getPackageName() : null;
                 }
                 if (pkg.equals(front)) {
                     promise.resolve((double) (SystemClock.uptimeMillis() - t0));

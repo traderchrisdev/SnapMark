@@ -126,13 +126,17 @@ export function screenshotNoteCandidates(dir: string, stamp: string, source = 'S
 /** Where a floating-button capture came from. page is 0-based. */
 export type CaptureSource = { kind: 'doc'; path: string; page: number } | { kind: 'note'; path: string } | { kind: 'app'; label: string };
 
+/** " - YYYY-MM-DD HHmm" and an optional " (N)" at the end of a SnapMark note name. */
+const STAMP_SUFFIX = / - \d{4}-\d{2}-\d{2} \d{4}(?: \(\d+\))?$/;
+
 /** What a capture's note is named after: "<Book> - p<N>", the note's title, or the app's name. */
 export function captureSourceName(source: CaptureSource): string {
   switch (source.kind) {
     case 'doc':
       return `${docTitle(source.path)} - p${source.page + 1}`;
     case 'note':
-      return docTitle(source.path);
+      // A capture taken in a capture note: don't stack timestamps ("eBiblia - <time> - <time>").
+      return docTitle(source.path).replace(STAMP_SUFFIX, '') || 'Screenshot';
     case 'app':
       return source.label.trim() ? sanitizeName(source.label) : 'Screenshot';
   }

@@ -60,6 +60,26 @@ def snap_page() -> Image.Image:
     return im
 
 
+def snap_region() -> Image.Image:
+    """A page with crop marks around part of it: snap just this part."""
+    im = Image.new("RGBA", (SIZE, SIZE), CLEAR)
+    d = ImageDraw.Draw(im)
+    left, top, right, bottom, fold = 18, 10, 138, 150, 28
+    page = [(left, top), (right - fold, top), (right, top + fold), (right, bottom), (left, bottom), (left, top)]
+    d.line(page, fill=INK, width=10, joint="curve")
+    d.line([(right - fold, top), (right - fold, top + fold), (right, top + fold)], fill=INK, width=10, joint="curve")
+    for y in (48, 76, 104):
+        d.line([(left + 20, y), (right - 20, y)], fill=INK, width=8)
+    # The selected part: crop marks around the page's lower right, the inside cleared and its lines bolder.
+    a, b, arm = 62, 182, 34
+    d.rectangle([a, a, b, b], fill=CLEAR)
+    for y in (104, 132):
+        d.line([(a + 16, y), (b - 26, y)], fill=INK, width=12)
+    for (x, y, dx, dy) in ((a, a, 1, 1), (b, a, -1, 1), (a, b, 1, -1), (b, b, -1, -1)):
+        d.line([(x, y + dy * arm), (x, y), (x + dx * arm, y)], fill=INK, width=STROKE, joint="curve")
+    return im
+
+
 def annotate_screenshot() -> Image.Image:
     im = Image.new("RGBA", (SIZE, SIZE), CLEAR)
     d = ImageDraw.Draw(im)
@@ -109,6 +129,7 @@ def save(im: Image.Image, name: str) -> None:
 
 if __name__ == "__main__":
     save(snap_page(), "icon-snap-page.png")
+    save(snap_region(), "icon-snap-region.png")
     save(annotate_screenshot(), "icon-annotate-screenshot.png")
     save(export_png(), "icon-export-png.png")
     save(insert_screenshot(), "icon-insert-screenshot.png")

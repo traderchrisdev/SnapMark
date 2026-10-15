@@ -7,6 +7,7 @@
 // createNote is allowed without the helper note. The floating button ends up here too (features/bubble).
 
 import { Image } from 'react-native';
+import type { Element } from 'sn-plugin-lib';
 import { backlinkSpec } from '../core/backlink';
 import { fitInsetsDp } from '../core/fit';
 import {
@@ -94,7 +95,17 @@ export interface SnapScreenshotOptions {
   source?: string;
   /** Captured from a document page: add the same "↩ <title>, p. N" link as Snap page does. */
   backlink?: DocPage;
+  /** Ink to put on the new page (already placed in its coordinates). The caller recycles them. */
+  elements?: Element[];
 }
+
+/** What goes onto the new page besides its image. */
+interface PageExtras {
+  backlink?: DocPage;
+  elements?: Element[];
+}
+
+const hasExtras = (x: PageExtras) => !!x.backlink || !!x.elements?.length;
 
 export interface DocPage {
   docPath: string;
@@ -112,7 +123,7 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
   }
   try {
     if (settings.collect) {
-      const inbox = await appendScreenshotToInbox(shot, page, isPortrait, settings, t, opts.backlink);
+      const inbox = await appendScreenshotToInbox(shot, page, isPortrait, settings, t, opts);
       if (inbox) {
         await refillPool(await Sn.pluginDir());
         return inbox;
@@ -125,10 +136,10 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
     t.mark('paths');
     await Sn.createNote(notePath, page, isPortrait);
     t.mark('createNote');
-    if (opts.backlink) {
+    if (hasExtras(opts)) {
       // Before opening, so the note is finished when NOTE shows it (R56).
-      await addBacklink(notePath, 0, opts.backlink);
-      t.mark('link');
+      await addToPage(notePath, 0, opts);
+      t.mark(opts.elements?.length ? `ink(${opts.elements.length}) + link` : 'link');
     }
     if (settings.afterSnap === 'open') {
       await Sn.openFile(notePath, 0);
@@ -169,7 +180,7 @@ async function appendScreenshotToInbox(
   isPortrait: boolean,
   settings: Settings,
   t: StepTimer,
-  backlink: DocPage | undefined,
+  extras: PageExtras,
 ): Promise<string | null> {
   const inbox = inboxPath(settings);
   await assertUnlocked(snapsDir(settings));
@@ -177,8 +188,8 @@ async function appendScreenshotToInbox(
   const open = settings.afterSnap === 'open';
   if (!(await fs.exists(inbox))) {
     await Sn.createNote(inbox, page, isPortrait); // we're in NOTE: allowed, and a fresh FILE_ID
-    if (backlink) {
-      await addBacklink(inbox, 0, backlink);
+    if (hasExtras(extras)) {
+      await addToPage(inbox, 0, extras);
     }
     if (open) {
       await Sn.openFile(inbox, 0);
@@ -201,14 +212,14 @@ async function appendScreenshotToInbox(
       await waitUntilCurrent(inbox);
     }
     pageIndex = await appendToOpenInbox(inbox, page);
-    if (backlink) {
-      await addBacklink(inbox, pageIndex, backlink);
+    if (hasExtras(extras)) {
+      await addToPage(inbox, pageIndex, extras);
     }
     await reloadAndShow(open ? pageIndex : null);
   } else {
     pageIndex = await appendToClosedInbox(inbox, page);
-    if (backlink) {
-      await addBacklink(inbox, pageIndex, backlink);
+    if (hasExtras(extras)) {
+      await addToPage(inbox, pageIndex, extras);
     }
   }
   t.mark(`inbox page ${pageIndex + 1}`);
@@ -219,19 +230,30 @@ async function appendScreenshotToInbox(
   return inbox;
 }
 
-/** At file level, like Snap page's backlink. The note is still useful without it, so failure only warns. */
-async function addBacklink(notePath: string, notePage: number, from: DocPage): Promise<void> {
+/**
+ * Ink and the backlink, at file level like Snap page. The note is still useful without them, so a
+ * failure only warns.
+ */
+async function addToPage(notePath: string, notePage: number, extras: PageExtras): Promise<void> {
+  const ink = extras.elements ?? [];
+  let link: Element | null = null;
   try {
-    const size = await Sn.pageSize(notePath, notePage);
-    const link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
-    try {
-      await Sn.insertElements(notePath, notePage, [link]);
-    } finally {
+    for (const e of ink) {
+      e.pageNum = notePage;
+    }
+    if (extras.backlink) {
+      const from = extras.backlink;
+      const size = await Sn.pageSize(notePath, notePage);
+      link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
+    }
+    await Sn.insertElements(notePath, notePage, link ? [...ink, link] : ink);
+  } catch (e) {
+    logError('add ink/link to the new page (note kept without them)', e);
+    toast(ink.length ? 'Saved, but your ink and the link back could not be added.' : 'Saved, but the link back to the page could not be added.', true);
+  } finally {
+    if (link) {
       Sn.recycle([link]);
     }
-  } catch (e) {
-    logError('capture backlink (note kept without it)', e);
-    toast('Saved, but the link back to the page could not be added.', true);
   }
 }
 

@@ -5,7 +5,8 @@
 SnapMark is a free, open-source plugin for Supernote e-ink devices.
 
 - **Snap page** (in a PDF or EPUB): the page becomes a new note, with your handwriting copied as editable ink, highlights kept, and a `↩` link back to the page.
-- **Floating capture button:** a small button that floats over every app (Kindle, the browser, a PDF, anything). Tap it, and about a second later you're writing on a note made from that screen.
+- **Snap region:** drag a box over a paragraph, verse or chart. Just that part goes at the top of a new note, enlarged, with room to write below. From a PDF, your ink inside the box stays editable.
+- **Floating capture button:** a small button that floats over every app (Kindle, the browser, a PDF, anything). Tap it, drag a box (or keep the whole screen), and about a second later you're writing on a note made from it.
 - **Annotate screenshot:** a Supernote screenshot becomes a new note.
 - **Insert screenshot:** a screenshot goes onto the page you're on, as a picture.
 - **Export page as PNG:** the current note page, with your writing, saved as an image.

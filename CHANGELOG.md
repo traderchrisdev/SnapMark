@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.3 (2026-10-15)
+
+- **Snap region:** choose part of the screen or page by dragging a box, with your finger or the pen. The cut-out goes at the top of a new note, enlarged up to 2×, with the rest of the page free to write on.
+  - **Floating button:** a tap now opens the selection screen. **Whole screen** is one tap away, or set **When I tap the floating button → Whole screen right away**.
+  - **New "Snap region" button** in the PDF/EPUB toolbar. The cut comes from a clean render of the page, your handwriting inside the box stays editable ink, and the `↩` link goes back to the page. **Whole page** does a normal Snap page.
+  - **The floating button in a PDF or EPUB** works the same way.
+- **Floating button:** finger taps work; a fingertip may now wobble more before a tap counts as a drag. The button starts on the file name at the bottom right of a note, where pen taps don't leave ink.
+- **Fixed:** "Whole screen" from a PDF could fail with "not allowed", because SnapMark acted before Notes was fully in front.
+- **Fixed:** a capture taken inside a capture note no longer gets two timestamps in its name.
+
 ## 0.9.0 (2026-10-15)
 
 - **Smaller floating button:** about 5 mm across. It remembers where you dragged it, also after a restart.

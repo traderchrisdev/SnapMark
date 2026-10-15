@@ -180,6 +180,22 @@ export function SettingsScreen() {
         </Section>
       ) : null}
 
+      {Native.available ? (
+        <Section
+          label="When I tap the floating button"
+          hint="Choose a region: the screen is shown and you drag a box over the part to keep (Whole screen is one tap away there)."
+        >
+          <Choice
+            options={[
+              { value: 'region', label: 'Choose a region' },
+              { value: 'whole', label: 'Whole screen right away' },
+            ]}
+            value={settings.bubbleAction}
+            onChange={v => update('bubbleAction', v)}
+          />
+        </Section>
+      ) : null}
+
       <Section label="Notes toolbar" hint="Screenshot notes are shrunk so the toolbar and the page bar don't cover them.">
         <Choice options={fitOptions} value={settings.screenshotFit} onChange={v => update('screenshotFit', v)} />
       </Section>

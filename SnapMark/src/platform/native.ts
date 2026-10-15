@@ -3,6 +3,7 @@
 // the method name, like SDK errors do.
 
 import { NativeModules } from 'react-native';
+import type { Rect } from '../core/backlink';
 import type { Insets } from '../core/fit';
 import { SnApiError } from '../sdk/errors';
 
@@ -34,6 +35,8 @@ interface Spec {
   clearAllBubbles(): Promise<number>;
   captureScreen(outPath: string, insetsDp: Insets): Promise<Capture>;
   fitImage(srcPath: string, outPath: string, insetsDp: Insets): Promise<FittedImage>;
+  cropInto(srcPath: string, outPath: string, crop: Rect, dst: Rect): Promise<{ width: number; height: number; encodeMs: number; totalMs: number }>;
+  releasePenLock(): Promise<boolean>;
   foreground(): Promise<FrontTask>;
   bringNoteToFront(): Promise<boolean>;
   moveTaskToFront(taskId: number): Promise<boolean>;
@@ -70,6 +73,10 @@ export const Native = {
   captureScreen: (outPath: string, insetsDp: Insets) => call('captureScreen', m => m.captureScreen(outPath, insetsDp)),
   /** The same shrink for an existing image (a native screenshot). */
   fitImage: (srcPath: string, outPath: string, insetsDp: Insets) => call('fitImage', m => m.fitImage(srcPath, outPath, insetsDp)),
+  /** The `crop` part of an image (px), drawn into `dst` (px) of a white page of the same size. */
+  cropInto: (srcPath: string, outPath: string, crop: Rect, dst: Rect) => call('cropInto', m => m.cropInto(srcPath, outPath, crop, dst)),
+  /** Let NOTE/DOC take pen input again after a plugin screen (false if this firmware can't). */
+  releasePenLock: () => call('releasePenLock', m => m.releasePenLock()),
 
   foreground: () => call('foreground', m => m.foreground()),
   /** False when NOTE has no running task to bring back. */

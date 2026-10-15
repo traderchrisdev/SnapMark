@@ -12,6 +12,9 @@ import { DEFAULT_SNAPS_FOLDER, sanitizeFolder, snapsDirFor } from './paths';
 
 export type AfterSnap = 'open' | 'stay';
 
+/** What a tap on the floating button does first. */
+export type BubbleAction = 'region' | 'whole';
+
 export interface Settings {
   /** Snaps folder under Note/, e.g. "Snaps" or "Reading/Snaps". Each document gets a subfolder. */
   folder: string;
@@ -31,6 +34,8 @@ export interface Settings {
   screenshotFreshMinutes: number;
   /** The floating capture button over every app (SPIKES.md §1l). */
   bubble: boolean;
+  /** "region": a tap opens a screen to drag a box over the part to keep. "whole": capture it all right away. */
+  bubbleAction: BubbleAction;
   /** Which side NOTE's toolbar is on, so screenshot notes are shrunk clear of it ("off": full size). */
   screenshotFit: ScreenshotFit;
 }
@@ -47,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   marginPercent: 0,
   screenshotFreshMinutes: 10,
   bubble: false,
+  bubbleAction: 'region',
   screenshotFit: 'left',
 };
 
@@ -75,6 +81,7 @@ const VALIDATE: Validators = {
   marginPercent: v => (typeof v === 'number' && (MARGIN_CHOICES as readonly number[]).includes(v) ? v : undefined),
   screenshotFreshMinutes: v => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 24 * 60 ? v : undefined),
   bubble: bool,
+  bubbleAction: v => (v === 'region' || v === 'whole' ? v : undefined),
   screenshotFit: v => (SCREENSHOT_FITS as readonly unknown[]).includes(v) ? (v as ScreenshotFit) : undefined,
 };
 

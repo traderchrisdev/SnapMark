@@ -5,6 +5,7 @@ import { latestScreenshot, type ShotAction } from './features/annotateScreenshot
 import { captureFromBubble, startBubble } from './features/bubble';
 import { exportCurrentPage } from './features/exportPng';
 import { snapPage } from './features/snapPage';
+import { snapRegion } from './features/snapRegion';
 import { log, logError } from './platform/log';
 import { hasFilePermissions } from './platform/permissions';
 import { loadSettings, storedSettingEntries } from './platform/settingsStore';
@@ -20,7 +21,8 @@ const BUTTON_SNAP_PAGE = 1;
 const BUTTON_ANNOTATE_SCREENSHOT = 2;
 const BUTTON_EXPORT_PNG = 3;
 const BUTTON_INSERT_SCREENSHOT = 4;
-const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT]);
+const BUTTON_SNAP_REGION = 5;
+const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION]);
 
 // One run at a time, from the toolbar buttons or the floating button. A run whose native call never
 // answers must not lock them forever.
@@ -39,6 +41,9 @@ async function run(id: number): Promise<void> {
   switch (id) {
     case BUTTON_SNAP_PAGE:
       await snapPage(settings);
+      return;
+    case BUTTON_SNAP_REGION:
+      await snapRegion(settings);
       return;
     case BUTTON_EXPORT_PNG:
       await exportCurrentPage();
@@ -80,6 +85,7 @@ async function onPress(id: number): Promise<void> {
 
 export interface Icons {
   snapPage: string;
+  snapRegion: string;
   annotateScreenshot: string;
   exportPng: string;
   insertScreenshot: string;
@@ -90,6 +96,12 @@ export async function startPlugin(icons: Icons): Promise<void> {
     id: BUTTON_SNAP_PAGE,
     name: 'Snap page',
     icon: icons.snapPage,
+    showType: SHOW_NO_UI,
+  });
+  const region = await PluginManager.registerButton(TOOLBAR, ['DOC'], {
+    id: BUTTON_SNAP_REGION,
+    name: 'Snap region',
+    icon: icons.snapRegion,
     showType: SHOW_NO_UI,
   });
   const shot = await PluginManager.registerButton(TOOLBAR, ['NOTE'], {
@@ -111,7 +123,7 @@ export async function startPlugin(icons: Icons): Promise<void> {
     showType: SHOW_NO_UI,
   });
   log(
-    `registered "Snap page": ${String(snap)}, "Annotate screenshot": ${String(shot)}, ` +
+    `registered "Snap page": ${String(snap)}, "Snap region": ${String(region)}, "Annotate screenshot": ${String(shot)}, ` +
       `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}`,
   );
   // Shows whether settings survived a plugin update (they live in the plugin's private dir).

@@ -6,7 +6,9 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 - [Install](#install)
 - [First run](#first-run)
 - [Snap a document page](#snap-a-document-page)
+- [Snap part of a page](#snap-part-of-a-page)
 - [The floating capture button](#the-floating-capture-button)
+- [Choosing a region](#choosing-a-region)
 - [Annotate a screenshot](#annotate-a-screenshot)
 - [Insert a screenshot into a note](#insert-a-screenshot-into-a-note)
 - [Export a note page as PNG](#export-a-note-page-as-png)
@@ -40,7 +42,7 @@ SnapMark's buttons are in the **plugin menu of the side toolbar**:
 
 | In a document (PDF, EPUB) | In a note |
 |---|---|
-| **Snap page** | **Annotate screenshot**, **Insert screenshot**, **Export page as PNG** |
+| **Snap page**, **Snap region** | **Annotate screenshot**, **Insert screenshot**, **Export page as PNG** |
 
 The **floating capture button** is separate and off by default; see below.
 
@@ -56,12 +58,27 @@ In a PDF or EPUB, tap **Snap page**. In about 3–4 seconds a new note opens wit
 
 With **After a snap → Stay here**, the note is saved and you stay on the page. With **Margin mode**, the page is shrunk to 80/75/66% at the top-left, leaving room to write on the right and below.
 
+## Snap part of a page
+
+In a PDF or EPUB, tap **Snap region** and [drag a box](#choosing-a-region) over the paragraph, verse or chart you want. The new note gets:
+- **that part of the page at the top**, enlarged up to 2× if it's small, with the rest of the page free to write on;
+- **your handwriting inside the box**, still real ink you can erase and move;
+- the `↩ <Book>, p. N` link back to the page.
+
+**Whole page** on the same screen does a normal Snap page.
+
 ## The floating capture button
 
 Turn it on in SnapMark's settings (**Floating capture button → On**). A small button with a viewfinder icon then floats over everything: notes, documents, Kindle, the browser, Settings.
 
-- **Tap it** to capture the screen. About a second later, Notes opens a new note with the capture as its page, ready to write on. The button itself isn't in the capture.
-- **Drag it** to move it out of the way. It stays where you leave it, also after a restart.
+- **Tap it** (finger or pen) to capture the screen. By default you then [drag a box](#choosing-a-region) over the part you want; **Whole screen** keeps all of it. About a second later Notes opens a new note with it, ready to write on. The button itself is never in the capture.
+- **In a PDF or EPUB it works like Snap region:** the cut comes from the page itself and your handwriting stays editable.
+- **Drag it** to move it. It stays where you leave it, also after a restart.
+- **Where to keep it:** by default it sits on the **file name at the bottom right** of a note.
+  - Supernote's pen writes on the page underneath any button, so a pen tap on the button over a page also leaves a dot of ink.
+  - On the file name (or on the toolbar), the pen doesn't write, so keep it there.
+  - A finger tap never writes.
+- **Skip the selection screen:** in the settings, set **When I tap the floating button → Whole screen right away**.
 - **Notes toolbar:** the capture is shrunk slightly so the toolbar and the page bar don't cover it. Set **Notes toolbar** to the side your toolbar is on, or to **Full size**.
 - **The note is named after where you were:**
   - `<app name> - <time>` from any app, for example `eBiblia - 2026-10-15 1231`;
@@ -69,6 +86,16 @@ Turn it on in SnapMark's settings (**Floating capture button → On**). A small 
   - `<note title> - <time>` from a note.
 - **After a snap** applies here too: **Open the snap** opens the new note; **Stay here** saves it and brings you back to the app you were in.
 - **Where snaps go → One "Snaps inbox"** turns each capture into the next page of your inbox notebook instead of a new note.
+
+## Choosing a region
+
+After **Snap region** or a tap on the floating button, you see the page or screen as it was:
+- **Drag** with your finger or the pen to draw a box. Drag a corner to adjust it, or drag elsewhere to start over.
+- **Snap region** keeps that part.
+- **Whole screen** (or **Whole page** in a document) keeps everything.
+- **Cancel** goes back to where you were.
+
+While this screen is up, the pen draws boxes, not ink. On e-ink the box follows your finger with a little delay; that's the display's refresh speed.
 
 ## Annotate a screenshot
 
@@ -100,6 +127,7 @@ Open them from **Settings → Apps → Plugins → SnapMark**, then SnapMark's s
 | Marker highlights | Turn them into underlines, or leave them out |
 | Annotate screenshot | How recent a screenshot must be to use it without the picker |
 | Floating capture button | On / Off |
+| When I tap the floating button | **Choose a region** (default) or **Whole screen right away** |
 | Notes toolbar | Which side your Notes toolbar is on (so captures aren't covered), or Full size |
 
 ## Where your snaps are saved
@@ -148,6 +176,8 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 | "Close the plugin screen first" | You tapped the floating button while a plugin's own screen was open. Close it and tap again. |
 | "Could not bring up the Notes app" | Open any note once, then tap the button again. |
 | The capture is partly under the toolbar | Set **Notes toolbar** to the side your toolbar is on. |
+| A pen tap on the floating button left a dot of ink | Drag the button onto the file name at the bottom right of the note; the pen doesn't write there. |
+| A whole-page snap comes out smaller, at the top-left | **Margin mode** is on in the settings; set it to Off for full-size pages. |
 | "SnapMark has no file access" | Allow it in **Settings → Apps → Plugins → SnapMark → Permissions**. |
 | "… is encrypted and locked" | Your snaps folder is in a locked folder. Unlock it in Files, or choose another folder. |
 | After an update, the floating button acts like the old version | Restart the device (see [Update](#update)). |
@@ -159,6 +189,8 @@ If the button is still on screen after uninstalling, tap it once or restart the 
   - landscape captures;
   - "Stay here" and the inbox with the floating button.
 - **Speed:** a page snap takes 3–4 s. An inbox snap takes 5–6 s, because the Notes app has to reload the open notebook.
+- **Drawing the box** on e-ink lags slightly behind your finger.
+- **Pen taps on the floating button** over a page also write a dot there (see [where to keep it](#the-floating-capture-button)). In a PDF the safe spots aren't known yet.
 - **Margin mode** copies your strokes but not shapes from the page.
 - **Annotate screenshot** can't tell where a native screenshot came from, so those notes are named `Screenshot - <time>`.
 
