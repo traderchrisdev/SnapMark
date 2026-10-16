@@ -1,0 +1,169 @@
+/* SnapMark: black ink on white paper, or white on black. Like an e-ink screen: no shadows, no
+   gradients, no easing. Things change instantly, and the theme switch does a full-refresh flash. */
+
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --dim: rgba(0, 0, 0, 0.64);
+  --hair: rgba(0, 0, 0, 0.18);
+  --shot: none;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #000000;
+    --ink: #ffffff;
+    --dim: rgba(255, 255, 255, 0.68);
+    --hair: rgba(255, 255, 255, 0.24);
+    --shot: invert(1);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #000000;
+  --ink: #ffffff;
+  --dim: rgba(255, 255, 255, 0.68);
+  --hair: rgba(255, 255, 255, 0.24);
+  --shot: invert(1);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: auto; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 18px/1.55 var(--serif);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+code { font: 0.86em var(--mono); }
+.nowrap { white-space: nowrap; }
+
+.skip { position: absolute; left: -9999px; top: 8px; background: var(--ink); color: var(--paper); padding: 8px 12px; z-index: 10; }
+.skip:focus { left: 8px; }
+
+/* The top bar looks like the device's status bar. */
+.bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 28px;
+  padding: 12px max(20px, calc((100% - 1080px) / 2));
+  background: var(--paper);
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--mono); font-size: 14px; letter-spacing: 0.02em;
+}
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 700 20px var(--serif); text-decoration: none; letter-spacing: 0; }
+.mark { width: 26px; height: 26px; }
+.mark path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.mark circle { fill: currentColor; }
+.bar nav { display: flex; gap: 22px; margin-left: auto; }
+.bar nav a { text-decoration: none; }
+.bar nav a:hover { text-decoration: underline; }
+.status { display: flex; align-items: center; }
+.battery { position: relative; width: 26px; height: 13px; border: 2px solid var(--ink); border-radius: 3px; }
+.battery::after { content: ""; position: absolute; right: -5px; top: 2px; width: 3px; height: 5px; background: var(--ink); border-radius: 0 1px 1px 0; }
+.battery i { position: absolute; inset: 2px; width: 72%; background: var(--ink); }
+.theme {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border: 2px solid var(--ink); border-radius: 50%; background: var(--paper); color: var(--ink); cursor: pointer; padding: 0;
+}
+.theme svg { width: 20px; height: 20px; }
+.theme circle { fill: none; stroke: currentColor; stroke-width: 2; }
+.theme path { fill: currentColor; }
+.theme:hover { background: var(--ink); color: var(--paper); }
+
+main { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 64px; align-items: center; padding: 72px 0 64px; border-bottom: 2px solid var(--ink); }
+.kicker, .meta, .num { font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.kicker { margin: 0 0 18px; }
+h1 { font-size: clamp(2.3rem, 5.2vw, 3.7rem); line-height: 1.08; letter-spacing: -0.015em; margin: 0 0 24px; font-weight: 700; }
+.lead { font-size: 1.18rem; margin: 0 0 32px; max-width: 34em; }
+.actions { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+.meta { color: var(--dim); margin: 0; letter-spacing: 0.04em; text-transform: none; }
+
+.btn {
+  display: inline-block; padding: 13px 22px; border: 2px solid var(--ink); border-radius: 8px;
+  font: 600 16px/1 var(--mono); letter-spacing: 0.02em; text-decoration: none; background: var(--paper); color: var(--ink);
+}
+.btn:hover { background: var(--ink); color: var(--paper); text-decoration: none; }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover { background: var(--paper); color: var(--ink); }
+
+/* A device: a bezel with a chin, the screen inside. In dark mode the screen is inverted, like e-ink's dark mode. */
+.device { margin: 0; border: 2px solid var(--ink); border-radius: 26px; padding: 16px 16px 34px; background: var(--paper); position: relative; }
+.device::after { content: ""; position: absolute; left: 50%; bottom: 13px; width: 28px; height: 4px; margin-left: -14px; border-radius: 2px; background: var(--ink); }
+.device img { display: block; width: 100%; height: auto; border: 1px solid var(--ink); filter: var(--shot); }
+.hero-device { max-width: 380px; justify-self: center; }
+.device.small { border-radius: 18px; padding: 10px 10px 24px; }
+.device.small::after { bottom: 9px; width: 20px; margin-left: -10px; height: 3px; }
+
+/* Sections */
+.section { padding: 64px 0; border-bottom: 2px solid var(--ink); scroll-margin-top: 64px; }
+#faq { border-bottom: 0; }
+h2 { font-size: 2rem; margin: 0 0 36px; display: flex; align-items: baseline; gap: 16px; }
+.num { font-size: 14px; border: 2px solid var(--ink); border-radius: 6px; padding: 2px 7px; }
+h3 { font-size: 1.2rem; margin: 18px 0 6px; }
+.section p { margin: 0 0 12px; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.steps p { color: var(--dim); }
+
+.features { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); border-left: 2px solid var(--ink); margin-bottom: 48px; }
+.features article { padding: 22px 24px 18px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+.features h3 { margin-top: 0; }
+.features p { color: var(--dim); }
+
+.pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; max-width: 720px; margin: 0 auto; }
+.arrow { font: 700 40px var(--mono); }
+
+.install { margin: 0 0 24px; padding-left: 1.4em; font-size: 1.1rem; }
+.install li { margin-bottom: 12px; padding-left: 6px; }
+.note { color: var(--dim); max-width: 46em; }
+
+.faq details { border-top: 2px solid var(--ink); }
+.faq details:last-child { border-bottom: 2px solid var(--ink); }
+.faq summary { cursor: pointer; list-style: none; padding: 18px 44px 18px 0; position: relative; font-weight: 700; font-size: 1.08rem; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; position: absolute; right: 6px; top: 13px; font: 400 26px var(--mono); }
+.faq details[open] summary::after { content: "−"; }
+.faq details p { margin: 0 0 20px; max-width: 46em; color: var(--dim); }
+
+.support { text-align: center; border-bottom: 0; }
+.support h2 { justify-content: center; }
+.support p { font-size: 1.15rem; margin-bottom: 26px; }
+
+.foot { border-top: 2px solid var(--ink); padding: 26px 20px 40px; text-align: center; font: 14px/1.7 var(--mono); }
+.foot p { margin: 0; }
+
+/* 404 page */
+.lost { grid-template-columns: 1fr; text-align: center; border-bottom: 0; }
+.lost .lead { margin-left: auto; margin-right: auto; }
+.lost .actions { justify-content: center; }
+
+/* Full-refresh flash when the theme changes: black, then white, then the new page. */
+.refresh { position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0; }
+.refresh.black { opacity: 1; background: #000; }
+.refresh.white { opacity: 1; background: #fff; }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 44px; padding-top: 48px; }
+  .hero-device { max-width: 320px; }
+  .steps { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+  .features { grid-template-columns: 1fr 1fr; }
+  .bar nav { display: none; }
+  .status { margin-left: auto; }
+}
+@media (max-width: 560px) {
+  body { font-size: 17px; }
+  .features { grid-template-columns: 1fr; }
+  .pair { gap: 14px; }
+  .arrow { font-size: 28px; }
+  .section { padding: 48px 0; }
+}

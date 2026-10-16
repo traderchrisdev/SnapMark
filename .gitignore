@@ -5,3 +5,6 @@ spike-out/
 
 # Throwaway Phase 0 spike plugin; its findings live in SPIKES.md.
 SnapMarkSpike/
+
+# Local tooling (preview server config).
+.claude/

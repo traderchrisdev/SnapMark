@@ -1,0 +1,32 @@
+# snapmark.ink: static site behind Railway's proxy (Railway terminates TLS and sets $PORT).
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	# www.snapmark.ink -> snapmark.ink
+	@www host www.snapmark.ink
+	redir @www https://snapmark.ink{uri} permanent
+
+	root * /srv
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Server
+	}
+	@assets path /img/* /*.png /*.svg /*.css /*.js
+	header @assets Cache-Control "public, max-age=3600"
+
+	file_server
+	handle_errors {
+		@404 expression {err.status_code} == 404
+		rewrite @404 /404.html
+		file_server
+	}
+}
