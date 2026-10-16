@@ -48,7 +48,7 @@
         <h1>Turn anything on your screen into a note you can write on.</h1>
         <p class="lead">Tap the floating button in any app, drag a box over the part you want, and you're writing on it a second later. In PDFs and EPUBs your handwriting comes along as real ink, with a link back to the page.</p>
         <div class="actions">
-          <a class="btn primary" href="https://github.com/traderchrisdev/SnapMark/releases/latest">Download SnapMark</a>
+          <a class="btn primary" href="https://github.com/traderchrisdev/SnapMark/releases/latest" data-event="download" data-where="hero">Download SnapMark</a>
           <a class="btn" href="https://github.com/traderchrisdev/SnapMark/blob/main/HOWTO.md">How-to guide</a>
         </div>
         <p class="meta">Free · Open source (MIT) · No internet access · Tested on Manta</p>
@@ -117,7 +117,7 @@
     <section id="install" class="section">
       <h2><span class="num">03</span> Install</h2>
       <ol class="install">
-        <li><strong>Download</strong> the <code>.snplg</code> file from the <a href="https://github.com/traderchrisdev/SnapMark/releases/latest">latest release</a>.</li>
+        <li><strong>Download</strong> the <code>.snplg</code> file from the <a href="https://github.com/traderchrisdev/SnapMark/releases/latest" data-event="download" data-where="install">latest release</a>.</li>
         <li><strong>Copy it</strong> into the <code>MyStyle</code> folder on your Supernote, by USB or with the Supernote Partner app.</li>
         <li><strong>On the device:</strong> Settings → Apps → Plugins → Choose Installation Package, then pick the file.</li>
       </ol>
@@ -156,6 +156,10 @@
           <p>Turn the floating button off in SnapMark's settings, then remove SnapMark in Settings → Apps → Plugins. Your snaps stay where they are.</p>
         </details>
         <details>
+          <summary>Does this website track me?</summary>
+          <p>Only if you allow it. If you accept the cookie question, the site uses Google Analytics to count visits and download clicks. If you decline, nothing is loaded. You can change your choice under "Cookie settings" at the bottom of the page. The plugin itself never sends anything.</p>
+        </details>
+        <details>
           <summary>Is it an official Supernote app?</summary>
           <p>No. SnapMark is an independent, open-source project. It isn't affiliated with or endorsed by Ratta or Supernote.</p>
         </details>
@@ -169,16 +173,17 @@
     <section id="support" class="section support">
       <h2><span class="num">05</span> Support</h2>
       <p>SnapMark is free. If it saves you time, you can buy me a coffee.</p>
-      <a class="btn primary" href="https://ko-fi.com/chrisxoxz">Support on Ko-fi</a>
+      <a class="btn primary" href="https://ko-fi.com/chrisxoxz" data-event="ko_fi" data-where="support">Support on Ko-fi</a>
     </section>
   </main>
 
   <footer class="foot">
-    <p><a href="https://github.com/traderchrisdev/SnapMark">Source on GitHub</a> · <a href="https://github.com/traderchrisdev/SnapMark/blob/main/CHANGELOG.md">Changelog</a> · MIT license</p>
+    <p><a href="https://github.com/traderchrisdev/SnapMark">Source on GitHub</a> · <a href="https://github.com/traderchrisdev/SnapMark/blob/main/CHANGELOG.md">Changelog</a> · MIT license · <a href="#" class="cookie-settings">Cookie settings</a></p>
     <p>Not affiliated with Ratta or Supernote.</p>
   </footer>
 
   <div class="refresh" aria-hidden="true"></div>
   <script src="/app.js" defer></script>
+  <script src="/consent.js" defer></script>
 </body>
 </html>

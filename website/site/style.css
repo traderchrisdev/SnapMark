@@ -142,6 +142,16 @@ h3 { font-size: 1.2rem; margin: 18px 0 6px; }
 .foot { border-top: 2px solid var(--ink); padding: 26px 20px 40px; text-align: center; font: 14px/1.7 var(--mono); }
 .foot p { margin: 0; }
 
+/* Cookie question: a plain panel at the bottom, like a system dialog on the device. */
+.consent {
+  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 15; max-width: 640px; margin: 0 auto;
+  background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 12px; padding: 18px 20px;
+  font-size: 16px;
+}
+.consent[hidden] { display: none; }
+.consent p { margin: 0 0 14px; }
+.consent-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
 /* 404 page */
 .lost { grid-template-columns: 1fr; text-align: center; border-bottom: 0; }
 .lost .lead { margin-left: auto; margin-right: auto; }
