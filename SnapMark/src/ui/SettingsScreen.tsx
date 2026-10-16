@@ -117,7 +117,7 @@ export function SettingsScreen() {
 
       <Section
         label="Margin mode"
-        hint="Page shrunk at the top-left, leaving room to write on the right and bottom. The page becomes a picture you can move with the lasso. For snaps saved as their own note."
+        hint="Page shrunk at the top-left, starting after the Notes toolbar (see the Notes toolbar setting), leaving room to write on the right and bottom. The page becomes a picture you can move with the lasso. For snaps saved as their own note."
       >
         <Choice options={marginOptions} value={settings.marginPercent} onChange={v => update('marginPercent', v)} />
       </Section>

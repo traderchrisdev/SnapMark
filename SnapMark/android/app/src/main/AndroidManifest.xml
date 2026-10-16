@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- No INTERNET: SnapMark has no network code. The RN template declares it; SnapMark does not. -->
 
     <application
       android:name=".MainApplication"

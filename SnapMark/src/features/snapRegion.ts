@@ -9,7 +9,7 @@
 // DOC, so screen and page coordinates match (R3, R16).
 
 import type { Element } from 'sn-plugin-lib';
-import type { Rect } from '../core/backlink';
+import type { Rect, Size } from '../core/backlink';
 import { UNDERLINE_PRESSURE } from '../core/highlights';
 import { scaleThicknessBy } from '../core/margin';
 import { isDocumentPath, tmpDir } from '../core/paths';
@@ -97,7 +97,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
         if (rendered) {
           const crop = captureToPage(box, shot, pageSize);
           const dst = await placeRegion(render, out, crop, pageSize, settings);
-          strokes = await regionStrokes(handwriting, crop, dst);
+          strokes = await regionStrokes(handwriting, crop, dst, pageSize);
         } else {
           // No render: cut the screen capture, which has the ink in it already.
           await placeRegion(raw, out, box, shot, settings);
@@ -123,7 +123,13 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     return;
   }
   try {
-    await deliverToNote('snap region', { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes }, settings, pluginDir, t);
+    await deliverToNote(
+      'snap region',
+      { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes, inkPageSize: pageSize },
+      settings,
+      pluginDir,
+      t,
+    );
   } finally {
     Sn.recycle(strokes);
   }
@@ -156,7 +162,7 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
 }
 
 /** The page's strokes that are mostly inside the box, moved and scaled into the placed cut-out. */
-async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, dst: Rect): Promise<Element[]> {
+async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, dst: Rect, pageSize: Size): Promise<Element[]> {
   const scale = regionScale(crop, dst);
   const out: Element[] = [];
   let shapes = 0;
@@ -167,7 +173,7 @@ async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, ds
       shapes++;
       continue;
     }
-    const points = await stroke.points.getRange(0, count);
+    const points = await Sn.strokePoints(stroke, count, pageSize);
     if (!mostlyInside(points, crop)) {
       continue;
     }
@@ -175,6 +181,7 @@ async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, ds
     out.push(
       await Sn.newStroke({
         page: 0,
+        pageSize,
         penType: stroke.penType,
         penColor: stroke.penColor,
         thickness: scaleThicknessBy(e.thickness, scale),

@@ -75,6 +75,8 @@ export interface Delivery {
   doc: DocPage | null;
   /** Ink for the new page, already placed. The caller recycles them. */
   elements?: Element[];
+  /** The page size that ink was made for. */
+  inkPageSize?: Size;
 }
 
 /**
@@ -101,6 +103,7 @@ export async function deliverToNote(label: string, d: Delivery, settings: Settin
         source,
         backlink: d.doc ?? undefined,
         elements: d.elements,
+        inkPageSize: d.inkPageSize,
       }),
     );
     t.mark('note');

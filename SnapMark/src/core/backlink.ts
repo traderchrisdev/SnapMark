@@ -1,5 +1,6 @@
 // Layout of the "↩ <DocTitle>, p. N" link written at the bottom of every snap.
-// Pure, so it can be unit-tested; coordinates are Android pixels of the note page (sn-plugin-lib > 0.1.65).
+// Pure, so it can be unit-tested; coordinates are Android pixels of the note page. Link and picture rects
+// are pixels on every library version (SPIKES.md R77); only stroke points are EMR on <= 0.1.65 (core/emr.ts).
 
 export interface Size {
   width: number;

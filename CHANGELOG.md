@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0 (2026-10-16)
+
+- **Runs on more firmware.** 0.12.0 was built with Supernote's newest plugin library (0.2.3), and some firmware refuses that with "This plugin is not compatible with the current system version. Please update the system." (reported on a Nomad with Chauvet 3.29.45_beta; the plugin never started, so its settings never appeared). SnapMark is now built with plugin library 0.1.65, which every firmware with plugin support accepts. Handwriting is converted between the coordinate systems the two library versions use; nothing else changes.
+- **Margin mode** now puts the shrunk page right of the Notes toolbar (or at the left edge if **Notes toolbar** is set to the right side), so a page with no left margin isn't hidden under it.
+- **Fixed:** a snap could open as two pages, one blank, although the note on disk was right (reopening it from its folder showed the finished page). Notes reloads the note by itself after each change SnapMark makes and ignored SnapMark's final reload when it came too early. SnapMark now builds the page in an order that always shows the finished page, waits for Notes to settle before asking it to reload, and waits for Notes to be on the new note before writing to it.
+- The Android package no longer declares the `INTERNET` permission (the React Native template had; SnapMark never used the network).
+
 ## 0.12.0 (2026-10-16)
 
 - **Paste into the note you're working in:** a new choice under **Where snaps go**. After Snap region or a tap on the floating button, Notes comes back with the note it last had open, and the cut-out is placed on the page you were on as a picture you can lasso, below what's already there (or on a new page after it when the page is full). From a PDF or EPUB, a `↩ <Book>, p. N` link goes just under it; from another app, a caption with the app's name and the time. Your ink inside the box is part of the picture.

@@ -12,6 +12,7 @@ import {
   type Element,
 } from 'sn-plugin-lib';
 import type { Rect, Size, TextLinkSpec } from '../core/backlink';
+import { fromEmr, toEmr, type Point } from '../core/emr';
 import { SnApiError } from './errors';
 
 interface RawResponse<T> {
@@ -190,7 +191,7 @@ export const Sn = {
     return el;
   },
 
-  /** A picture element showing `picturePath` in `rect` (main layer). */
+  /** A picture element showing `picturePath` in `rect` (page px on every library version, R77; main layer). */
   newPictureElement: async (picturePath: string, rect: Rect, page: number): Promise<Element> => {
     const el = await call<Element>('createElement', PluginCommAPI.createElement(TYPE_PICTURE));
     el.pageNum = page;
@@ -199,13 +200,19 @@ export const Sn = {
     return el;
   },
 
+  /** A stroke's points in page px (the SDK gives EMR, core/emr). */
+  strokePoints: async (stroke: NonNullable<Element['stroke']>, count: number, pageSize: Size): Promise<Point[]> =>
+    (await stroke.points.getRange(0, count)).map(p => fromEmr(p, pageSize)),
+
   /** A new stroke with its point and pressure data written native-side. */
   newStroke: async (opts: {
     page: number;
     penType: number;
     penColor: number;
     thickness: number;
+    /** In page px of a page of `pageSize`. */
     points: Array<{ x: number; y: number }>;
+    pageSize: Size;
     /** One value for every point, or one per point. */
     pressure: number | number[];
   }): Promise<Element> => {
@@ -219,7 +226,7 @@ export const Sn = {
     el.stroke.penType = opts.penType;
     el.stroke.penColor = opts.penColor;
     const last = opts.points.length - 1;
-    await el.stroke.points.setRange(0, last, opts.points);
+    await el.stroke.points.setRange(0, last, opts.points.map(p => toEmr(p, opts.pageSize)));
     const pressures = Array.isArray(opts.pressure) ? opts.pressure : opts.points.map(() => opts.pressure as number);
     await el.stroke.pressures.setRange(0, last, pressures);
     return el;

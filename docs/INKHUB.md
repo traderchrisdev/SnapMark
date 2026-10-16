@@ -21,14 +21,16 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.12.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.13.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).
 > - PNG exports go to `EXPORT/`.
 > - SnapMark reads `SCREENSHOT/` and the open document.
 > - It never deletes or overwrites user files. Every delete is restricted in code to its own private plugin folder (`src/sdk/fs.ts`, `assertPrivate`) and only removes its temporary images.
-> - There is no `INTERNET` permission and no network code anywhere, in JS or native.
+> - There is no `INTERNET` permission and no network code anywhere, in JS or native. (The Android package declares `SYSTEM_ALERT_WINDOW`, for the floating button, and the storage permissions that Supernote's own plugin library adds to every plugin.)
+>
+> 0.13.0 changes the plugin library version (0.2.3 → 0.1.65, so older firmware accepts it), the JavaScript, and drops the `INTERNET` permission the React Native template had declared; the native module is unchanged from 0.12.0.
 >
 > **What the native code does** (`SnapMarkNativeModule.java`; items 1–4 are used only by the optional floating button, which is off by default):
 > 1. **The button:** shows a small `TYPE_APPLICATION_OVERLAY` button, the same technique SuperDashboard uses.

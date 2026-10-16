@@ -8,7 +8,7 @@
 
 import { Image } from 'react-native';
 import type { Element } from 'sn-plugin-lib';
-import { backlinkSpec } from '../core/backlink';
+import { backlinkSpec, type Size } from '../core/backlink';
 import { fitInsetsDp } from '../core/fit';
 import {
   SCREENSHOT_DIR,
@@ -29,7 +29,7 @@ import { toast } from '../platform/toast';
 import { UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
-import { waitUntilCurrent } from '../sdk/wait';
+import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { assertUnlocked, firstFreePath } from './files';
 import { appendToClosedInbox, appendToOpenInbox, reloadAndShow } from './inbox';
 import { refillPool } from './pool';
@@ -97,12 +97,15 @@ export interface SnapScreenshotOptions {
   backlink?: DocPage;
   /** Ink to put on the new page (already placed in its coordinates). The caller recycles them. */
   elements?: Element[];
+  /** The page size the ink was made for; it is left out if the page differs (its EMR range would, R77). */
+  inkPageSize?: Size;
 }
 
 /** What goes onto the new page besides its image. */
 interface PageExtras {
   backlink?: DocPage;
   elements?: Element[];
+  inkPageSize?: Size;
 }
 
 const hasExtras = (x: PageExtras) => !!x.backlink || !!x.elements?.length;
@@ -215,6 +218,7 @@ async function appendScreenshotToInbox(
     if (hasExtras(extras)) {
       await addToPage(inbox, pageIndex, extras);
     }
+    await ensureStillCurrent(inbox);
     await reloadAndShow(open ? pageIndex : null);
   } else {
     pageIndex = await appendToClosedInbox(inbox, page);
@@ -235,15 +239,20 @@ async function appendScreenshotToInbox(
  * failure only warns.
  */
 async function addToPage(notePath: string, notePage: number, extras: PageExtras): Promise<void> {
-  const ink = extras.elements ?? [];
+  let ink = extras.elements ?? [];
   let link: Element | null = null;
   try {
+    const size = ink.length || extras.backlink ? await Sn.pageSize(notePath, notePage) : null;
+    const made = extras.inkPageSize;
+    if (ink.length && size && made && (size.width !== made.width || size.height !== made.height)) {
+      log(`note page ${size.width}x${size.height} != ink page ${made.width}x${made.height}; ink not copied`);
+      ink = [];
+    }
     for (const e of ink) {
       e.pageNum = notePage;
     }
-    if (extras.backlink) {
+    if (extras.backlink && size) {
       const from = extras.backlink;
-      const size = await Sn.pageSize(notePath, notePage);
       link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
     }
     await Sn.insertElements(notePath, notePage, link ? [...ink, link] : ink);

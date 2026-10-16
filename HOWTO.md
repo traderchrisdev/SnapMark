@@ -23,7 +23,7 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 
 ## What you need
 
-- **A Supernote with plugin support.** SnapMark is built with Supernote's newest plugin library (0.2.3, October 2026), and the firmware's plugin system has to accept it. A Manta build from 9 October 2026 does. A Nomad user on Chauvet 3.29.45 beta reports that SnapMark won't start there ("not compatible with the current system version", and no settings). That is being looked into.
+- **A Supernote with plugin support.** The firmware must have the plugin system: **Chauvet 3.29.43 or later** on Manta and Nomad, or **2.26.40 or later** on A5 X and A6 X. You can check your version in the device's Settings. Since 0.13.0 SnapMark is built with Supernote's plugin library 0.1.65, which every such firmware accepts (0.12.0 used the newer 0.2.3, which some firmware refused).
 - **Tested devices:** SnapMark is tested on a **Manta** only. It's written to work on other models, but they are untested. Reports are welcome.
 
 ## Install
@@ -56,7 +56,7 @@ In a PDF or EPUB, tap **Snap page**. In about 3–4 seconds a new note opens wit
 - **marker highlights** turned into thin underlines (the Notes app would draw a marker solid over the text);
 - **a link at the bottom**, `↩ <Book>, p. N`, that opens the book on that page again.
 
-With **After a snap → Stay here**, the note is saved and you stay on the page. With **Margin mode**, the page is shrunk to 80/75/66% at the top-left, leaving room to write on the right and below.
+With **After a snap → Stay here**, the note is saved and you stay on the page. With **Margin mode**, the page is shrunk to 80/75/66% at the top-left, starting after the Notes toolbar (set **Notes toolbar** to the side yours is on; with **Full size** it starts in the corner), leaving room to write on the right and below.
 
 ## Snap part of a page
 
@@ -147,7 +147,7 @@ Open them from **Settings → Apps → Plugins → SnapMark**, then SnapMark's s
 | Annotate screenshot | How recent a screenshot must be to use it without the picker |
 | Floating capture button | On / Off |
 | When I tap the floating button | **Choose a region** (default) or **Whole screen right away** |
-| Notes toolbar | Which side your Notes toolbar is on (so captures aren't covered), or Full size |
+| Notes toolbar | Which side your Notes toolbar is on, so captures aren't covered and margin-mode pages start after it, or Full size |
 
 ## Where your snaps are saved
 
@@ -190,7 +190,8 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 
 | You see | What to do |
 |---|---|
-| "This plugin is not compatible with the current system version. Please update the system." and no SnapMark settings | Your firmware's plugin system doesn't accept SnapMark's plugin library version (0.2.3). Please [open an issue](https://github.com/traderchrisdev/SnapMark/issues/new/choose) with your model, firmware version and the exact message. "Update the plugin" and "update the system" point to different causes. |
+| "This plugin is not compatible with the current system version. Please update the system." and no SnapMark settings | Your firmware's plugin system rejects the plugin library version SnapMark was built with. Update to SnapMark 0.13.0 or later, which is built with library 0.1.65. If it still happens, please [open an issue](https://github.com/traderchrisdev/SnapMark/issues/new/choose) with your model, firmware version and the exact message. |
+| The snap opens as two pages, one of them blank | Notes showed a half-way state; the note itself is complete. Reopen it from its folder. Fixed in 0.13.0. |
 | "Open the note to paste into, then snap again." | With **Into the note I'm working in**, open the note in Notes first, then snap. |
 | The floating button doesn't appear after turning it on | Open any note once. If it's still missing, restart the device. |
 | "Still working on the last snap…" | A snap is in progress; wait a moment. It resets on its own after a minute if something got stuck. |

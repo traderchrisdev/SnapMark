@@ -25,6 +25,12 @@ export async function appendToClosedInbox(inbox: string, template: string): Prom
   return page;
 }
 
+/**
+ * NOTE reloads the open note by itself 0.2-0.7 s after each file-level edit, and drops a reload
+ * request that arrives while that is still running ("isLoadCurrentLayersRunning", R78). So ours waits
+ * until NOTE is idle again.
+ */
+const QUIET_MS = 1000;
 const SETTLE_MS = 600;
 const RETRY_MS = 400;
 const ATTEMPTS = 6;
@@ -34,8 +40,14 @@ const ATTEMPTS = 6;
  * show that page. reloadFile may never answer (R48), so success is checked by the page NOTE reports.
  * Also used before leaving the note ("stay here") so NOTE drops its stale copy first.
  */
-export async function reloadAndShow(page: number | null): Promise<boolean> {
+/** Make NOTE re-read the open file once it is idle after our edits (fire and forget, R48). */
+export async function quietReload(): Promise<void> {
+  await nativeDelay(QUIET_MS);
   Sn.reloadOpenFile();
+}
+
+export async function reloadAndShow(page: number | null): Promise<boolean> {
+  await quietReload();
   await nativeDelay(SETTLE_MS);
   if (page === null) {
     return true;

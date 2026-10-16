@@ -29,7 +29,10 @@ import {
   tmpDir,
   tmpRenderPath,
 } from '../core/paths';
+import { PixelRatio } from 'react-native';
+import { fitInsetsDp } from '../core/fit';
 import { marginLayout, scalePoints, scaleThickness, type MarginLayout } from '../core/margin';
+import { insetsToPx } from '../core/region';
 import { collects, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { blankNoteAssetPath } from '../platform/assets';
@@ -39,9 +42,9 @@ import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
-import { waitUntilCurrent } from '../sdk/wait';
+import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { assertUnlocked, firstFreePath } from './files';
-import { appendToOpenInbox, reloadAndShow } from './inbox';
+import { appendToOpenInbox, quietReload, reloadAndShow } from './inbox';
 import { BLANK_TEMPLATE, pooledBlank, refillPool } from './pool';
 
 const TYPE_STROKE = 0;
@@ -69,7 +72,10 @@ export async function snapPage(settings: Settings): Promise<void> {
   const pageSize = await documentPageSize(docPath, page);
   const inbox = inboxPath(settings);
   const appendToInbox = collects(settings) && (await fs.exists(inbox));
-  const margin = !collects(settings) && settings.marginPercent > 0 ? marginLayout(pageSize, settings.marginPercent) : null;
+  const margin =
+    !collects(settings) && settings.marginPercent > 0
+      ? marginLayout(pageSize, settings.marginPercent, insetsToPx(fitInsetsDp(settings.screenshotFit), PixelRatio.get()))
+      : null;
   // Appending: render at the inbox's page size, so a landscape page is letterboxed into it (R11).
   // Margin mode: render at exactly the shrunk size; the picture shows it 1:1.
   const renderSize = appendToInbox ? await Sn.pageSize(inbox, 0) : margin ? margin.imageSize : pageSize;
@@ -162,6 +168,7 @@ async function viaInbox(snap: Snap, pluginDir: string, stay: boolean, t: StepTim
   const linked = await addHandwritingAndBacklink(snap, notePage);
   t.mark(`page ${notePage + 1}`);
   await refillPool(pluginDir);
+  await ensureStillCurrent(snap.notePath);
   await reloadAndShow(stay ? null : notePage);
   t.mark('show');
   return { linked, notePage };
@@ -189,7 +196,7 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   const noteSize = await Sn.pageSize(snap.notePath, 0);
   const sameFrame = noteSize.width === snap.pageSize.width && noteSize.height === snap.pageSize.height;
   const picture = await Sn.newPictureElement(snap.render, layout.rect, 0);
-  const strokes = sameFrame ? await scaledStrokes(snap.handwriting, layout) : [];
+  const strokes = sameFrame ? await scaledStrokes(snap.handwriting, layout, noteSize) : [];
   const link = await Sn.newLinkElement(backlinkSpec(snap.docPath, snap.title, snap.page, noteSize), 0);
   const elements = [picture, ...strokes, link];
   t.mark(`elements(${strokes.length} strokes)`);
@@ -212,7 +219,7 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
 }
 
 /** New strokes: each doc stroke (or marker underline) scaled and moved into the margin layout. */
-async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: MarginLayout): Promise<Element[]> {
+async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: MarginLayout, pageSize: Size): Promise<Element[]> {
   const out: Element[] = [];
   let skipped = 0;
   for (const e of handwriting) {
@@ -222,11 +229,12 @@ async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: Margin
       skipped++;
       continue;
     }
-    const points = await stroke.points.getRange(0, count);
+    const points = await Sn.strokePoints(stroke, count, pageSize);
     const pressures = await stroke.pressures.getRange(0, count).catch(() => null);
     out.push(
       await Sn.newStroke({
         page: 0,
+        pageSize,
         penType: stroke.penType,
         penColor: stroke.penColor,
         thickness: scaleThickness(e.thickness, layout),
@@ -248,16 +256,19 @@ async function viaOpenedSnap(snap: Snap, blank: string, pluginDir: string, stay:
   await Sn.openFile(snap.notePath, 0);
   await waitUntilCurrent(snap.notePath); // NOTE in front: NOTE-only file APIs are allowed now
   t.mark('open');
-  await Sn.insertNotePage(snap.notePath, 1, snap.render);
-  const linked = await addHandwritingAndBacklink(snap, 1);
-  await Sn.removeNotePage(snap.notePath, 0);
+  // The rendered page goes in front and the blank is removed behind it: NOTE reloads the current
+  // page by itself after each edit, so it shows the finished page even before our reload (R78).
+  await Sn.insertNotePage(snap.notePath, 0, snap.render);
+  const linked = await addHandwritingAndBacklink(snap, 0);
+  await Sn.removeNotePage(snap.notePath, 1);
   t.mark('page');
   await refillPool(pluginDir);
   t.mark('refill');
+  await ensureStillCurrent(snap.notePath);
   if (stay) {
     await reloadAndShow(null); // let NOTE drop its stale copy before we leave
   } else {
-    Sn.reloadOpenFile(); // NOTE shows the new page; last, because it may never answer (R48)
+    await quietReload(); // NOTE picks up the page count; it may never answer (R48)
   }
   return linked;
 }
@@ -312,17 +323,18 @@ export async function readHandwriting(docPath: string, page: number, pageSize: S
 }
 
 async function markerToUnderline(marker: Element, pageSize: Size): Promise<Element | null> {
-  const points = marker.stroke?.points;
-  const count = points ? await points.size() : 0;
-  if (!points || count < 2) {
+  const stroke = marker.stroke;
+  const count = stroke ? await stroke.points.size() : 0;
+  if (!stroke || count < 2) {
     return null;
   }
   return Sn.newStroke({
     page: 0,
+    pageSize,
     penType: PEN_TECHNICAL,
     penColor: COLOR_DARK_GRAY,
     thickness: UNDERLINE_THICKNESS,
-    points: underlinePoints(await points.getRange(0, count), marker.thickness, pageSize.height),
+    points: underlinePoints(await Sn.strokePoints(stroke, count, pageSize), marker.thickness, pageSize.height),
     pressure: UNDERLINE_PRESSURE,
   });
 }

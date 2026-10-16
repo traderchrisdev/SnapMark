@@ -1,4 +1,5 @@
 import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
+import { fromEmr, toEmr } from '../src/core/emr';
 import { backlinkSpec, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder } from '../src/core/backlink';
 import { fitInsetsDp } from '../src/core/fit';
 import {
@@ -288,6 +289,11 @@ describe('margin mode', () => {
     expect(l.imageSize).toEqual({ width: 1440, height: 1920 });
     expect(l.rect).toEqual({ left: 0, top: 0, right: 1440, bottom: 1920 });
   });
+  it('starts the picture after the toolbar, and the ink moves with it', () => {
+    const l = marginLayout(manta, 75, { left: 116, top: 0, right: 0, bottom: 90 });
+    expect(l.rect).toEqual({ left: 116, top: 0, right: 1556, bottom: 1920 });
+    expect(scalePoints([{ x: 1000, y: 2000 }], l)).toEqual([{ x: 866, y: 1500 }]);
+  });
   it('scales handwriting into the same frame, with a minimum pen width', () => {
     const l = marginLayout(manta, 75);
     expect(scalePoints([{ x: 1000, y: 2000 }], l)).toEqual([{ x: 750, y: 1500 }]);
@@ -448,5 +454,30 @@ describe('paste into the open note', () => {
   });
   it('leaves the link at the page bottom when the picture reaches it', () => {
     expect(linkUnder(spec, { left: 400, top: 1500, right: 1500, bottom: 2400 }, manta)).toEqual(spec);
+  });
+});
+
+describe('EMR coordinates (sn-plugin-lib 0.1.65)', () => {
+  const manta = { width: 1920, height: 2560 };
+  const nomad = { width: 1404, height: 1872 };
+  it('matches the library: the digitizer is rotated against the page', () => {
+    // Expected values from sn-plugin-lib 0.1.65 PointUtils.androidPoint2Emr.
+    const cases: Array<[{ width: number; height: number }, number, number]> = [
+      [manta, 10143.962485345839, 13687.678999478896],
+      [nomad, 10145.804382683058, 9327.150392017105],
+      [{ width: 2560, height: 1920 }, 10145.28400208442, 19096.00937866354],
+    ];
+    for (const [page, x, y] of cases) {
+      const e = toEmr({ x: 300, y: 1200 }, page);
+      expect(e.x).toBeCloseTo(x, 6);
+      expect(e.y).toBeCloseTo(y, 6);
+      const back = fromEmr(e, page);
+      expect(back.x).toBeCloseTo(300, 6);
+      expect(back.y).toBeCloseTo(1200, 6);
+    }
+    expect(toEmr({ x: 0, y: 0 }, manta)).toEqual({ x: 0, y: 16224 });
+  });
+  it('refuses a page size it has no digitizer range for', () => {
+    expect(() => toEmr({ x: 0, y: 0 }, { width: 1000, height: 1000 })).toThrow();
   });
 });
