@@ -2,7 +2,7 @@
 
 **Turn what's on your screen into a note you can write on, in one tap.**
 
-SnapMark is a free, open-source plugin for Supernote e-ink devices.
+SnapMark is a free, open-source plugin for Supernote e-ink devices. Website: **[snapmark.ink](https://snapmark.ink)**.
 
 - **Snap page** (in a PDF or EPUB): the page becomes a new note, with your handwriting copied as editable ink, highlights kept, and a `↩` link back to the page.
 - **Snap region:** drag a box over a paragraph, verse or chart. Just that part goes at the top of a new note, enlarged, with room to write below. From a PDF, your ink inside the box stays editable.
