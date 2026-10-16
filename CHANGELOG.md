@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.5 (2026-10-16)
+
+- The plugin's description (shown in Settings → Apps → Plugins) now says what the floating button does: it captures the screen only when you tap it, and nothing leaves your device. No other changes.
+
 ## 0.11.4 (2026-10-16)
 
 - **Fixed:** Snap region and Snap page could fail on some PDF pages with "The page does not exist". Supernote's plugin system can refuse to report the size of a page the PDF app is showing (seen on page 2 of a 2-page PDF); SnapMark now uses the screen size, which is what it reports for documents anyway.
