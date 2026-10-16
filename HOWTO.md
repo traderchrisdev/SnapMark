@@ -23,7 +23,7 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 
 ## What you need
 
-- **A Supernote with plugin support.** The firmware must have the plugin permission system: **Chauvet 3.29.43 or later** on Manta and Nomad, or **2.26.40 or later** on A5 X and A6 X. You can check your version in the device's Settings.
+- **A Supernote with recent firmware.** SnapMark is built with Supernote's newest plugin library (0.2.3, October 2026), and the firmware has to support it. A Manta build from 9 October 2026 does. Older betas, for example Chauvet 3.29.45 beta on a Nomad, show "This plugin is not compatible with the current system version. Please update the system." when SnapMark starts, and its settings never appear. A version for older firmware is planned.
 - **Tested devices:** SnapMark is tested on a **Manta** only. It's written to work on other models, but they are untested. Reports are welcome.
 
 ## Install
@@ -190,6 +190,8 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 
 | You see | What to do |
 |---|---|
+| "This plugin is not compatible with the current system version. Please update the system." and no SnapMark settings | Your firmware's plugin system is older than SnapMark's plugin library (0.2.3). Update the firmware when Supernote offers an update; a SnapMark build for older firmware is planned. |
+| "Open the note to paste into, then snap again." | With **Into the note I'm working in**, open the note in Notes first, then snap. |
 | The floating button doesn't appear after turning it on | Open any note once. If it's still missing, restart the device. |
 | "Still working on the last snap…" | A snap is in progress; wait a moment. It resets on its own after a minute if something got stuck. |
 | "Close the plugin screen first" | You tapped the floating button while a plugin's own screen was open. Close it and tap again. |
