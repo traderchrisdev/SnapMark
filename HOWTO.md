@@ -213,3 +213,7 @@ If you're comfortable with `adb`, a log helps a lot:
 ```bash
 adb logcat -v time | grep -E 'SnapMark|AndroidRuntime'
 ```
+
+## Support SnapMark
+
+SnapMark is free. If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/chrisxoxz).

@@ -31,6 +31,10 @@ Everything stays on your device: no account, no internet access.
 - **Building:** the plugin's source and build instructions are in [`SnapMark/`](SnapMark/README.md). It's React Native 0.79 with `sn-plugin-lib`, plus a small Java module for the floating button and screen capture.
 - **Design notes:** [`SPIKES.md`](SPIKES.md) records the experiments behind every design decision, including undocumented PluginHost behaviour, which may be useful if you write your own plugin. [`SPEC.md`](SPEC.md) is the original plan.
 
+## Support
+
+SnapMark is free. If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/chrisxoxz).
+
 ## Credits and license
 
 - **License:** MIT, see [LICENSE](LICENSE).
