@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.4 (2026-10-16)
+
+- **Fixed:** Snap region and Snap page could fail on some PDF pages with "The page does not exist". Supernote's plugin system can refuse to report the size of a page the PDF app is showing (seen on page 2 of a 2-page PDF); SnapMark now uses the screen size, which is what it reports for documents anyway.
+- **Screenshots** in the README and the how-to guide.
+
 ## 0.11.3 (2026-10-15)
 
 - **Snap region:** choose part of the screen or page by dragging a box, with your finger or the pen. The cut-out goes at the top of a new note, enlarged up to 2×, with the rest of the page free to write on.

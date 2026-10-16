@@ -7,6 +7,11 @@ export const CODE_NOT_ALLOWED_HERE = 102;
  * front, or NOTE was just brought to the front and calls aren't routed to it yet (SPIKES.md R64, R65).
  */
 export const CODE_NOTE_NOT_READY = 118;
+/**
+ * "The page does not exist". PluginHost refused getPageSize for page 2 of a 2-page PDF while DOC showed
+ * that page and reported 2 pages, the same the next day (SPIKES.md R75).
+ */
+export const CODE_PAGE_NOT_FOUND = 1207;
 /** Target path is encrypted and locked. */
 export const CODE_ENCRYPTED_LOCKED = 1217;
 /** Write / read API called without FILE:WRITE / FILE:READ. */

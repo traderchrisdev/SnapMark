@@ -70,6 +70,8 @@ const LINK_OK = 0;
 export const Sn = {
   currentFilePath: () => call<string>('getCurrentFilePath', PluginCommAPI.getCurrentFilePath()),
   currentPage: () => call<number>('getCurrentPageNum', PluginCommAPI.getCurrentPageNum()),
+  /** DOC only: page count of the open document. */
+  docTotalPages: () => call<number>('getCurrentTotalPages', PluginDocAPI.getCurrentTotalPages()),
   pageSize: (path: string, page: number) => call<Size>('getPageSize', PluginFileAPI.getPageSize(path, page)),
   deviceType: () => PluginManager.getDeviceType(),
   pluginDir: async (): Promise<string> => {

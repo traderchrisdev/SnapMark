@@ -24,7 +24,7 @@ import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, deliverToNote, placeRegion, removeCaptures } from './capture';
 import { askForRegion, type RegionChoice } from './region';
-import { readHandwriting, snapPage } from './snapPage';
+import { documentPageSize, readHandwriting, snapPage } from './snapPage';
 
 /** Lets the plugin menu that held the button close before the screen is captured. */
 const MENU_CLOSE_MS = 300;
@@ -42,7 +42,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   if (!isDocumentPath(docPath)) {
     throw new UserFacingError('Open a document to snap a region.');
   }
-  const pageSize = await Sn.pageSize(docPath, page);
+  const pageSize = await documentPageSize(docPath, page);
   const tmp = tmpDir(pluginDir);
   await fs.makeDirs(tmp);
   const stamp = Date.now();

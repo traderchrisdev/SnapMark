@@ -60,6 +60,8 @@ With **After a snap → Stay here**, the note is saved and you stay on the page.
 
 ## Snap part of a page
 
+![Snap region from the PDF toolbar: box the part you want, then write on the note](docs/screenshots/2-toolbar-region.png)
+
 In a PDF or EPUB, tap **Snap region** and [drag a box](#choosing-a-region) over the paragraph, verse or chart you want. The new note gets:
 - **that part of the page at the top**, enlarged up to 2× if it's small, with the rest of the page free to write on;
 - **your handwriting inside the box**, still real ink you can erase and move;
@@ -89,6 +91,8 @@ Turn it on in SnapMark's settings (**Floating capture button → On**). A small 
 
 ## Choosing a region
 
+![Mark up a page, tap the floating button and drag a box, then write on the note it makes](docs/screenshots/1-snap-region.png)
+
 After **Snap region** or a tap on the floating button, you see the page or screen as it was:
 - **Drag** with your finger or the pen to draw a box. Drag a corner to adjust it, or drag elsewhere to start over.
 - **Snap region** keeps that part.
@@ -115,6 +119,8 @@ In any note, tap **Export page as PNG**. The current page, with all your writing
 ## Settings
 
 Open them from **Settings → Apps → Plugins → SnapMark**, then SnapMark's settings button. Every change is saved immediately.
+
+![SnapMark's settings screen](docs/screenshots/3-settings.png)
 
 | Setting | What it does |
 |---|---|

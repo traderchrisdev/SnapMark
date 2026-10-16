@@ -14,6 +14,8 @@ SnapMark is a free, open-source plugin for Supernote e-ink devices.
 
 Everything stays on your device: no account, no internet access.
 
+![Mark up a page, tap the button and drag a box, then write on the note it makes](docs/screenshots/1-snap-region.png)
+
 ## Download and install
 
 1. Download `SnapMark-v<version>.snplg` from the **[latest release](../../releases/latest)**.

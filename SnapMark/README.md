@@ -2,7 +2,7 @@
 
 A Supernote plugin: one tap turns what you're reading into a note you can write on, with a link back to where you were.
 
-**Status: SnapMark 0.11.3** (2026-10-15).
+**Status: SnapMark 0.11.4** (2026-10-16): fixes Snap region / Snap page on PDF pages whose size PluginHost refuses to report (SPIKES.md R75), verified on the Manta.
 - 0.11 adds **Snap region**: drag a box over part of the screen or page. It works from the floating button (any app) and from a new **Snap region** button in the PDF/EPUB toolbar.
   - In a document, the cut comes from a clean render of the page, and your handwriting inside the box stays editable ink (SPIKES.md R70).
   - Finger taps on the floating button work, and it starts on Notes' file name at the bottom right, where a pen tap doesn't leave ink (R72, R73).

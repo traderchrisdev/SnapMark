@@ -34,8 +34,9 @@ import { inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
+import { screenSizePx } from '../platform/screen';
 import { toast } from '../platform/toast';
-import { UserFacingError } from '../sdk/errors';
+import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { waitUntilCurrent } from '../sdk/wait';
@@ -65,7 +66,7 @@ export async function snapPage(settings: Settings): Promise<void> {
     throw new UserFacingError('Open a document to snap a page.');
   }
   // DOC reports the page as displayed, which matches the note page on the same device (R3, R16).
-  const pageSize = await Sn.pageSize(docPath, page);
+  const pageSize = await documentPageSize(docPath, page);
   const inbox = inboxPath(settings);
   const appendToInbox = settings.collect && (await fs.exists(inbox));
   const margin = !settings.collect && settings.marginPercent > 0 ? marginLayout(pageSize, settings.marginPercent) : null;
@@ -131,6 +132,24 @@ export async function snapPage(settings: Settings): Promise<void> {
   } finally {
     Sn.recycle(handwriting);
     await fs.remove(render).catch(() => undefined); // embedded in the note by now (R21)
+  }
+}
+
+/**
+ * getPageSize for a document page: always the screen size (R3). PluginHost can refuse a page DOC is
+ * showing (1207, R75); then the screen size is the same answer.
+ */
+export async function documentPageSize(docPath: string, page: number): Promise<Size> {
+  try {
+    return await Sn.pageSize(docPath, page);
+  } catch (e) {
+    if (errorCode(e) !== CODE_PAGE_NOT_FOUND) {
+      throw e;
+    }
+    const total = await Sn.docTotalPages().catch(() => -1);
+    const size = screenSizePx();
+    log(`getPageSize refused page ${page + 1} (DOC says ${total} pages); using the screen size ${size.width}x${size.height}`);
+    return size;
   }
 }
 
