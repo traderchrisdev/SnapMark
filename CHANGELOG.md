@@ -4,7 +4,7 @@
 
 - **Paste into the note you're working in:** a new choice under **Where snaps go**. After Snap region or a tap on the floating button, Notes comes back with the note it last had open, and the cut-out is placed on the page you were on as a picture you can lasso, below what's already there (or on a new page after it when the page is full). From a PDF or EPUB, a `↩ <Book>, p. N` link goes just under it; from another app, a caption with the app's name and the time. Your ink inside the box is part of the picture.
 - Your earlier **Where snaps go** choice is kept.
-- **Requirements corrected:** SnapMark needs firmware that supports Supernote's plugin library 0.2.3 (October 2026). Older firmware refuses it: a Nomad user on Chauvet 3.29.45 beta (older than the tested Manta's firmware) got "not compatible with the current system version" when SnapMark started. That is also why no settings appeared there. A build for older firmware is planned.
+- **Requirements:** "Chauvet 3.29.43 or later" was too broad. SnapMark is built with Supernote's plugin library 0.2.3, and the firmware's plugin system checks that version before starting a plugin. A Nomad user on Chauvet 3.29.45 beta reports "not compatible with the current system version", which is being looked into.
 
 ## 0.11.5 (2026-10-16)
 
