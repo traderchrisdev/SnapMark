@@ -25,7 +25,7 @@ Everything stays on your device: no account, no internet access.
 
 **[How-to guide](HOWTO.md)**: every feature, the settings, updating, privacy, troubleshooting.
 
-**Requirements:** recent firmware whose plugin system supports plugin library 0.2.3, Supernote's newest (published October 2026). It's tested on a Manta build from 9 October 2026. Earlier betas, including Chauvet 3.29.45 beta on a Nomad, refuse it with "This plugin is not compatible with the current system version. Please update the system." A version for older firmware is planned. **Tested on a Manta only;** other models should work but are untested.
+**Requirements:** recent firmware whose plugin system supports plugin library 0.2.3, Supernote's newest (published October 2026). It's tested on a Manta build from 9 October 2026. Older firmware refuses it. A Nomad user on Chauvet 3.29.45 beta, which is older than the tested Manta's firmware, reported "This plugin is not compatible with the current system version. Please update the system." A version for older firmware is planned. **Tested on a Manta only;** other models should work but are untested.
 
 ## For developers
 

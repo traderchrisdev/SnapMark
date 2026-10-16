@@ -23,7 +23,7 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 
 ## What you need
 
-- **A Supernote with recent firmware.** SnapMark is built with Supernote's newest plugin library (0.2.3, October 2026), and the firmware has to support it. A Manta build from 9 October 2026 does. Older betas, for example Chauvet 3.29.45 beta on a Nomad, show "This plugin is not compatible with the current system version. Please update the system." when SnapMark starts, and its settings never appear. A version for older firmware is planned.
+- **A Supernote with recent firmware.** SnapMark is built with Supernote's newest plugin library (0.2.3, October 2026), and the firmware has to support it. A Manta build from 9 October 2026 does. On older firmware, for example Chauvet 3.29.45 beta (reported by a Nomad user; older than the tested Manta's firmware), you see "This plugin is not compatible with the current system version. Please update the system." when SnapMark starts, and its settings never appear. A version for older firmware is planned.
 - **Tested devices:** SnapMark is tested on a **Manta** only. It's written to work on other models, but they are untested. Reports are welcome.
 
 ## Install
