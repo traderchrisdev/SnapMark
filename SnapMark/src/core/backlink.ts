@@ -56,3 +56,50 @@ export function backlinkSpec(docPath: string, title: string, page: number, pageS
     isItalic: 0,
   };
 }
+
+const GAP_UNDER_PICTURE = 12;
+
+/** A box at the bottom of the page moved to just under a pasted picture (left-aligned with it), if it fits. */
+function boxUnder(box: Rect, picture: Rect, pageSize: Size): Rect {
+  const width = box.right - box.left;
+  const height = box.bottom - box.top;
+  const top = picture.bottom + GAP_UNDER_PICTURE;
+  if (top + height > box.bottom) {
+    return box;
+  }
+  const left = Math.max(box.left, Math.min(picture.left, pageSize.width - box.left - width));
+  return { left, top, right: left + width, bottom: top + height };
+}
+
+/**
+ * The link moved to just under a picture pasted onto a page, so each pasted cut-out carries its own
+ * link. Stays at the bottom of the page if there's no room under the picture.
+ */
+export function linkUnder(spec: TextLinkSpec, picture: Rect, pageSize: Size): TextLinkSpec {
+  return { ...spec, rect: boxUnder(spec.rect, picture, pageSize) };
+}
+
+/** A plain text line under a pasted picture, sized like the link. */
+export interface CaptionSpec {
+  text: string;
+  fontSize: number;
+  rect: Rect;
+}
+
+/** Where an app capture came from, for its caption: "Kindle · 16 Oct 2026, 15:07". */
+export function captionText(app: string, at: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const when = `${at.getDate()} ${months[at.getMonth()]} ${at.getFullYear()}, ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  return app ? `${app} · ${when}` : when;
+}
+
+/** The caption under a pasted picture (same size and clearances as the link). */
+export function captionUnder(text: string, picture: Rect, pageSize: Size): CaptionSpec {
+  const layout = backlinkSpec('', text, 0, pageSize);
+  const fontSize = layout.fontSize;
+  const left = layout.rect.left;
+  const width = Math.min(pageSize.width - 2 * left, Math.round(Array.from(text).length * fontSize * 0.62) + 16);
+  const box = { left, top: layout.rect.top, right: left + width, bottom: layout.rect.bottom };
+  return { text, fontSize, rect: boxUnder(box, picture, pageSize) };
+}

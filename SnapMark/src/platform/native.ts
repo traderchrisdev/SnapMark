@@ -3,7 +3,7 @@
 // the method name, like SDK errors do.
 
 import { NativeModules } from 'react-native';
-import type { Rect } from '../core/backlink';
+import type { Rect, Size } from '../core/backlink';
 import type { Insets } from '../core/fit';
 import { SnApiError } from '../sdk/errors';
 
@@ -36,6 +36,9 @@ interface Spec {
   captureScreen(outPath: string, insetsDp: Insets): Promise<Capture>;
   fitImage(srcPath: string, outPath: string, insetsDp: Insets): Promise<FittedImage>;
   cropInto(srcPath: string, outPath: string, crop: Rect, dst: Rect): Promise<{ width: number; height: number; encodeMs: number; totalMs: number }>;
+  cutOut(srcPath: string, outPath: string, crop: Rect): Promise<Size>;
+  contentBottom(pagePath: string, templatePath: string | null): Promise<number>;
+  whitePng(outPath: string, width: number, height: number): Promise<boolean>;
   releasePenLock(): Promise<boolean>;
   foreground(): Promise<FrontTask>;
   bringNoteToFront(): Promise<boolean>;
@@ -75,6 +78,11 @@ export const Native = {
   fitImage: (srcPath: string, outPath: string, insetsDp: Insets) => call('fitImage', m => m.fitImage(srcPath, outPath, insetsDp)),
   /** The `crop` part of an image (px), drawn into `dst` (px) of a white page of the same size. */
   cropInto: (srcPath: string, outPath: string, crop: Rect, dst: Rect) => call('cropInto', m => m.cropInto(srcPath, outPath, crop, dst)),
+  /** Just the `crop` part (px) of an image, as an image that size. */
+  cutOut: (srcPath: string, outPath: string, crop: Rect) => call('cutOut', m => m.cutOut(srcPath, outPath, crop)),
+  /** Lowest row of a page render with content (what differs from `templatePath`, or isn't white), -1 if none. */
+  contentBottom: (pagePath: string, templatePath: string | null) => call('contentBottom', m => m.contentBottom(pagePath, templatePath)),
+  whitePng: (outPath: string, width: number, height: number) => call('whitePng', m => m.whitePng(outPath, width, height)),
   /** Let NOTE/DOC take pen input again after a plugin screen (false if this firmware can't). */
   releasePenLock: () => call('releasePenLock', m => m.releasePenLock()),
 

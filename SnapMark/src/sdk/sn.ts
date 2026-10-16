@@ -59,6 +59,7 @@ async function callOk(api: string, pending: Promise<unknown>): Promise<void> {
 
 const TYPE_STROKE = 0;
 const TYPE_PICTURE = 200;
+const TYPE_TEXT = 500;
 const TYPE_LINK = 600;
 const RENDER_WITH_HIGHLIGHTS = 1;
 const RENDER_PLAIN = 0;
@@ -96,6 +97,14 @@ export const Sn = {
   /** A note page flattened (template + all layers) onto white, at the note's own size. Reads the file: save first. */
   notePagePng: (notePath: string, page: number, pngPath: string) =>
     callOk('generateNotePng', PluginFileAPI.generateNotePng({ notePath, page, times: 1, pngPath, type: PNG_WHITE_BACKGROUND })),
+
+  /** The page's background: `user_<name>` for an image (a snap or capture), otherwise a built-in template. */
+  pageTemplate: (notePath: string, page: number) =>
+    call<{ name: string; md5: string }>('getNotePageTemplate', PluginFileAPI.getNotePageTemplate(notePath, page)),
+
+  /** The page's background as an image. */
+  templatePng: (notePath: string, page: number, pngPath: string) =>
+    callOk('generateNoteTemplatePng', PluginFileAPI.generateNoteTemplatePng(notePath, page, pngPath)),
 
   /** NOTE only (102 inside DOC). Inserts before page `page`; the template image is embedded (R26). */
   insertNotePage: (notePath: string, page: number, template: string) =>
@@ -156,6 +165,27 @@ export const Sn = {
       showText: spec.showText,
       italic: spec.isItalic,
       controlTrailNums: [],
+    });
+    return el;
+  },
+
+  /** A text box (plain, not editable as a frame) in `rect` (main layer). */
+  newTextElement: async (text: string, fontSize: number, rect: Rect, page: number): Promise<Element> => {
+    const el = await call<Element>('createElement', PluginCommAPI.createElement(TYPE_TEXT));
+    el.pageNum = page;
+    el.layerNum = 0;
+    el.textBox = Object.assign(el.textBox ?? {}, {
+      fontSize,
+      fontPath: null,
+      textContentFull: text,
+      textRect: rect,
+      textDigestData: null,
+      textAlign: 0,
+      textBold: 0,
+      textItalics: 0,
+      textFrameWidthType: 0,
+      textFrameStyle: 0,
+      textEditable: 0,
     });
     return el;
   },

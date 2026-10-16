@@ -408,6 +408,101 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         }).start();
     }
 
+    /** Just the `crop` part of an image, as an image of that size (to paste into a note). */
+    @ReactMethod
+    public void cutOut(String srcPath, String outPath, ReadableMap crop, Promise promise) {
+        new Thread(() -> {
+            try {
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                Bitmap src = BitmapFactory.decodeFile(srcPath, o);
+                if (src == null) throw new IOException("cannot decode " + srcPath);
+                int l = Math.max(0, crop.getInt("left")), t = Math.max(0, crop.getInt("top"));
+                int r = Math.min(src.getWidth(), crop.getInt("right")), b = Math.min(src.getHeight(), crop.getInt("bottom"));
+                if (r - l < 1 || b - t < 1) throw new IOException("empty crop");
+                Bitmap cut = Bitmap.createBitmap(src, l, t, r - l, b - t);
+                if (cut != src) src.recycle();
+                writeGrayPng(cut, new File(outPath));
+                WritableMap m = Arguments.createMap();
+                m.putInt("width", cut.getWidth());
+                m.putInt("height", cut.getHeight());
+                cut.recycle();
+                promise.resolve(m);
+            } catch (Throwable e) {
+                Log.e(TAG, "cutOut failed", e);
+                promise.reject("E_CUT", e.toString(), e);
+            }
+        }).start();
+    }
+
+    /**
+     * The lowest row of a rendered note page that has something on it, or -1 if it's empty. With a
+     * template image, only what differs from it counts (lined paper isn't content); without one, anything
+     * not white does. A row counts once a few pixels differ, so specks and anti-aliasing don't.
+     */
+    @ReactMethod
+    public void contentBottom(String pagePath, String templatePath, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap page = BitmapFactory.decodeFile(pagePath);
+                if (page == null) throw new IOException("cannot decode " + pagePath);
+                Bitmap tpl = templatePath == null ? null : BitmapFactory.decodeFile(templatePath);
+                int w = page.getWidth(), h = page.getHeight();
+                if (tpl != null && (tpl.getWidth() != w || tpl.getHeight() != h)) {
+                    Bitmap scaled = Bitmap.createScaledBitmap(tpl, w, h, true);
+                    if (scaled != tpl) tpl.recycle();
+                    tpl = scaled;
+                }
+                int[] row = new int[w], ref = new int[w];
+                int bottom = -1;
+                for (int y = h - 1; y >= 0 && bottom < 0; y--) {
+                    page.getPixels(row, 0, w, 0, y, w, 1);
+                    if (tpl != null) tpl.getPixels(ref, 0, w, 0, y, w, 1);
+                    int hits = 0;
+                    for (int x = 0; x < w; x++) {
+                        int v = luma(row[x]);
+                        int base = tpl != null ? luma(ref[x]) : 255;
+                        if (Math.abs(v - base) > 64 && ++hits >= 3) {
+                            bottom = y;
+                            break;
+                        }
+                    }
+                }
+                page.recycle();
+                if (tpl != null) tpl.recycle();
+                promise.resolve(bottom);
+            } catch (Throwable e) {
+                Log.e(TAG, "contentBottom failed", e);
+                promise.reject("E_CONTENT", e.toString(), e);
+            }
+        }).start();
+    }
+
+    /** Transparent pixels count as white (the page shows through them). */
+    private static int luma(int c) {
+        int a = (c >>> 24) & 0xff;
+        int r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+        int l = (r * 299 + g * 587 + b * 114) / 1000;
+        return (l * a + 255 * (255 - a)) / 255;
+    }
+
+    /** A white image of the given size (the background of a page added for a paste). */
+    @ReactMethod
+    public void whitePng(String outPath, int width, int height, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                b.eraseColor(Color.WHITE);
+                writeGrayPng(b, new File(outPath));
+                b.recycle();
+                promise.resolve(true);
+            } catch (Throwable e) {
+                Log.e(TAG, "whitePng failed", e);
+                promise.reject("E_WHITE", e.toString(), e);
+            }
+        }).start();
+    }
+
     /** Recycles src. */
     private WritableMap fitAndWrite(Bitmap src, File out, ReadableMap insetsDp) throws IOException {
         long k0 = SystemClock.uptimeMillis();

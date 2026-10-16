@@ -21,7 +21,7 @@ import {
   tmpDir,
 } from '../core/paths';
 import { isFresh, newestFirst, type Screenshot } from '../core/screenshots';
-import { INBOX_NAME, inboxPath, snapsDir, type Settings } from '../core/settings';
+import { collects, INBOX_NAME, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { log, logError } from '../platform/log';
 import { Native } from '../platform/native';
@@ -122,7 +122,7 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
     t.mark('fit');
   }
   try {
-    if (settings.collect) {
+    if (collects(settings)) {
       const inbox = await appendScreenshotToInbox(shot, page, isPortrait, settings, t, opts);
       if (inbox) {
         await refillPool(await Sn.pluginDir());

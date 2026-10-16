@@ -1,5 +1,5 @@
 import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
-import { backlinkSpec, LINK_TYPE_DOCUMENT } from '../src/core/backlink';
+import { backlinkSpec, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder } from '../src/core/backlink';
 import { fitInsetsDp } from '../src/core/fit';
 import {
   boxFrom,
@@ -11,6 +11,7 @@ import {
   mapToRegion,
   mostlyInside,
   oppositeCorner,
+  pastePlacement,
   regionPlacement,
   regionScale,
 } from '../src/core/region';
@@ -173,7 +174,7 @@ describe('settings encoding', () => {
       encodeSetting('keepHighlights', false),
       encodeSetting('screenshotFreshMinutes', 30),
       encodeSetting('highlightStyle', 'omit'),
-      encodeSetting('collect', true),
+      encodeSetting('destination', 'current'),
     ];
     expect(entries.every(e => !e.includes('/'))).toBe(true);
     expect(decodeSettings(entries)).toEqual({
@@ -183,8 +184,15 @@ describe('settings encoding', () => {
       keepHighlights: false,
       screenshotFreshMinutes: 30,
       highlightStyle: 'omit',
-      collect: true,
+      destination: 'current',
     });
+  });
+  it('reads the pre-0.12 collect setting as a destination, unless a destination is stored', () => {
+    expect(decodeSettings(['collect=true']).destination).toBe('inbox');
+    expect(decodeSettings(['collect=false']).destination).toBe('note');
+    expect(decodeSettings(['collect=true', encodeSetting('destination', 'current')]).destination).toBe('current');
+    expect(decodeSettings([encodeSetting('destination', 'note'), 'collect=true']).destination).toBe('note');
+    expect(entryKey('collect=true')).toBe('destination');
   });
   it('ignores unknown keys, corrupt values and invalid values', () => {
     expect(decodeSettings(['nope=1', 'afterSnap=%%%', 'afterSnap=%22later%22', 'screenshotFreshMinutes=-5', 'no-equals'])).toEqual(
@@ -389,5 +397,56 @@ describe('snap region in a document', () => {
     expect(mostlyInside([{ x: 10, y: 10 }, { x: 50, y: 50 }, { x: 150, y: 50 }], box)).toBe(true);
     expect(mostlyInside([{ x: 10, y: 10 }, { x: 150, y: 50 }, { x: 160, y: 50 }], box)).toBe(false);
     expect(mostlyInside([], box)).toBe(false);
+  });
+});
+
+describe('paste into the open note', () => {
+  const manta = { width: 1920, height: 2560 };
+  const spec = backlinkSpec('/d/Book.pdf', 'Book', 4, manta);
+  it('puts the link just under the pasted picture, left-aligned with it', () => {
+    const s = linkUnder(spec, { left: 400, top: 900, right: 1500, bottom: 1300 }, manta);
+    expect(s.rect.left).toBe(400);
+    expect(s.rect.top).toBe(1312);
+    expect(s.rect.bottom - s.rect.top).toBe(spec.rect.bottom - spec.rect.top);
+    expect(s.showText).toBe('↩ Book, p. 5');
+  });
+  it('keeps the link clear of the toolbar and on the page', () => {
+    expect(linkUnder(spec, { left: 0, top: 0, right: 900, bottom: 400 }, manta).rect.left).toBe(spec.rect.left);
+    const right = linkUnder(spec, { left: 1900, top: 0, right: 1920, bottom: 400 }, manta).rect;
+    expect(right.right).toBeLessThanOrEqual(manta.width - spec.rect.left);
+  });
+  const insets = { left: 120, top: 0, right: 0, bottom: 100 };
+  it('pastes at its own size below the lowest content, centered beside the toolbar', () => {
+    const plan = pastePlacement(manta, { width: 1000, height: 400 }, 800, insets, 30, 60);
+    expect(plan.newPage).toBe(false);
+    expect(plan.rect).toEqual({ left: 520, top: 830, right: 1520, bottom: 1230 });
+  });
+  it('pastes at the top of an empty page', () => {
+    expect(pastePlacement(manta, { width: 1000, height: 400 }, -1, insets, 30, 60).rect.top).toBe(30);
+  });
+  it('goes to a new page when there is no room below (a full-page capture note)', () => {
+    const plan = pastePlacement(manta, { width: 1628, height: 1020 }, 2550, insets, 30, 60);
+    expect(plan.newPage).toBe(true);
+    expect(plan.rect.top).toBe(30);
+    expect(plan.rect.right - plan.rect.left).toBe(1628);
+  });
+  it('shrinks a cut-out wider or taller than the room on a page', () => {
+    const wide = pastePlacement(manta, { width: 1920, height: 600 }, -1, insets, 30, 0).rect;
+    expect(wide.left).toBe(150);
+    expect(wide.right).toBe(1890);
+    const tall = pastePlacement(manta, { width: 1000, height: 3000 }, -1, insets, 30, 60).rect;
+    expect(tall.bottom).toBeLessThanOrEqual(2560 - 100 - 30 - 60);
+  });
+  it('captions an app capture with the app and time, under the picture', () => {
+    const text = captionText('Kindle', new Date(2026, 9, 16, 15, 7));
+    expect(text).toBe('Kindle · 16 Oct 2026, 15:07');
+    expect(captionText('', new Date(2026, 0, 2, 9, 5))).toBe('2 Jan 2026, 09:05');
+    const c = captionUnder(text, { left: 400, top: 100, right: 1500, bottom: 600 }, manta);
+    expect(c.rect.left).toBe(400);
+    expect(c.rect.top).toBe(612);
+    expect(c.fontSize).toBe(spec.fontSize);
+  });
+  it('leaves the link at the page bottom when the picture reaches it', () => {
+    expect(linkUnder(spec, { left: 400, top: 1500, right: 1500, bottom: 2400 }, manta)).toEqual(spec);
   });
 });

@@ -9,7 +9,8 @@
 // the page and your ink stays editable, instead of being flattened into a picture of the screen.
 
 import { DeviceEventEmitter } from 'react-native';
-import { classifyApp, DOC_PACKAGE } from '../core/apps';
+import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE } from '../core/apps';
+import { captionText } from '../core/backlink';
 import { fitInsetsDp } from '../core/fit';
 import { tmpDir } from '../core/paths';
 import { StepTimer } from '../core/timer';
@@ -18,7 +19,7 @@ import { BUBBLE_TAP_EVENT, Native } from '../platform/native';
 import { cachedSettings } from '../platform/settingsStore';
 import { UserFacingError } from '../sdk/errors';
 import { Sn } from '../sdk/sn';
-import { CAPTURE_PREFIX, closeRegionScreen, deliverToNote, placeRegion, removeCaptures } from './capture';
+import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import { askForRegion, type RegionChoice } from './region';
 import { snapPage } from './snapPage';
 import { snapRegion } from './snapRegion';
@@ -56,10 +57,12 @@ export async function captureFromBubble(): Promise<void> {
   const raw = `${tmpDir(dir)}/${CAPTURE_PREFIX}${stamp}.png`;
   const takenAt = new Date();
   const choose = settings.bubbleAction === 'region';
-  // To choose a region the user sees the screen as it was; otherwise it's shrunk clear of the toolbar now.
+  const paste = settings.destination === 'current';
+  // To choose a region the user sees the screen as it was, and a paste is the screen as it was;
+  // otherwise it's shrunk clear of the toolbar now.
   const [front, shot] = await Promise.all([
     Native.foreground(),
-    Native.captureScreen(raw, fitInsetsDp(choose ? 'off' : settings.screenshotFit)),
+    Native.captureScreen(raw, fitInsetsDp(choose || paste ? 'off' : settings.screenshotFit)),
   ]);
   t.mark(`capture (shot ${shot.shotMs}, fit ${shot.composeMs}, png ${shot.encodeMs})`);
   if (classifyApp(front.pkg) === 'pluginHost') {
@@ -75,15 +78,20 @@ export async function captureFromBubble(): Promise<void> {
     return;
   }
   let page = raw;
+  let pasted: Pasted = { path: raw, width: shot.width, height: shot.height };
   if (choose) {
     const out = `${tmpDir(dir)}/${CAPTURE_PREFIX}${stamp}-page.png`;
     let choice: RegionChoice = null;
     try {
       choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole screen');
-      if (choice === 'whole') {
+      if (choice === 'whole' && !paste) {
         await Native.fitImage(raw, out, fitInsetsDp(settings.screenshotFit));
-      } else if (choice) {
-        await placeRegion(raw, out, choice, shot, settings);
+      } else if (choice && choice !== 'whole') {
+        if (paste) {
+          pasted = await cutRegion(raw, out, choice);
+        } else {
+          await placeRegion(raw, out, choice, shot, settings);
+        }
       }
     } finally {
       await closeRegionScreen('bubble', choice);
@@ -93,6 +101,12 @@ export async function captureFromBubble(): Promise<void> {
       return; // the capture is removed by the next run that gets NOTE in front
     }
     page = out;
+  }
+  if (paste) {
+    // From an app there's no page to link back to, so a caption says where it came from.
+    const caption = front.pkg === NOTE_PACKAGE ? null : captionText(front.label, takenAt);
+    await pasteIntoNote('bubble', pasted, front, null, caption, settings, dir, t);
+    return;
   }
   await deliverToNote('bubble', { page, takenAt, isPortrait: shot.height >= shot.width, front, doc: null }, settings, dir, t);
 }

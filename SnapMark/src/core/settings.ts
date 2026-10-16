@@ -12,6 +12,12 @@ import { DEFAULT_SNAPS_FOLDER, sanitizeFolder, snapsDirFor } from './paths';
 
 export type AfterSnap = 'open' | 'stay';
 
+/**
+ * Where a snap goes. "note": a new note each. "inbox": the next page of the Snaps inbox. "current": a
+ * region snap is pasted as a picture onto the page of the note open in NOTE (others make a note each).
+ */
+export type Destination = 'note' | 'inbox' | 'current';
+
 /** What a tap on the floating button does first. */
 export type BubbleAction = 'region' | 'whole';
 
@@ -26,8 +32,8 @@ export interface Settings {
   highlightStyle: HighlightStyle;
   /** "open": go to the new note. "stay": save it, stay where you are, show a short confirmation. */
   afterSnap: AfterSnap;
-  /** Collect mode: append every snap as a page of one "Snaps inbox" notebook instead of a note each. */
-  collect: boolean;
+  /** Where snaps go (see Destination). Stored as "collect" (true/false) before 0.12. */
+  destination: Destination;
   /** Margin mode: page shrunk to this percent at the top-left, as a picture (0 = off). Own-note snaps only. */
   marginPercent: number;
   /** A screenshot newer than this is used directly; otherwise the picker opens. 0 = always pick. */
@@ -48,7 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   includeHandwriting: true,
   highlightStyle: 'underline',
   afterSnap: 'open',
-  collect: false,
+  destination: 'note',
   marginPercent: 0,
   screenshotFreshMinutes: 10,
   bubble: false,
@@ -61,6 +67,11 @@ export function snapsDir(s: Settings): string {
 }
 
 export const INBOX_NAME = 'Snaps inbox';
+
+/** Collect mode: snaps are appended as pages of one "Snaps inbox" notebook. */
+export function collects(s: Settings): boolean {
+  return s.destination === 'inbox';
+}
 
 /** The collect-mode notebook, at the root of the snaps folder. */
 export function inboxPath(s: Settings): string {
@@ -77,7 +88,8 @@ const VALIDATE: Validators = {
   includeHandwriting: bool,
   highlightStyle: v => (v === 'underline' || v === 'omit' ? v : undefined),
   afterSnap: v => (v === 'open' || v === 'stay' ? v : undefined),
-  collect: bool,
+  destination: v =>
+    v === 'note' || v === 'inbox' || v === 'current' ? v : v === true ? 'inbox' : v === false ? 'note' : undefined,
   marginPercent: v => (typeof v === 'number' && (MARGIN_CHOICES as readonly number[]).includes(v) ? v : undefined),
   screenshotFreshMinutes: v => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 24 * 60 ? v : undefined),
   bubble: bool,
@@ -94,10 +106,16 @@ export function encodeSetting<K extends keyof Settings>(key: K, value: Settings[
   return `${key}=${encodeURIComponent(JSON.stringify(value))}`;
 }
 
-/** The key a stored folder name belongs to, or null. */
+/** Keys renamed since; their stored values are read by the new key's validator. */
+const LEGACY_KEYS: Readonly<Record<string, keyof Settings>> = { collect: 'destination' };
+
+/** The key a stored folder name belongs to (legacy names mapped), or null. */
 export function entryKey(entry: string): keyof Settings | null {
+  if (!entry.includes('=')) {
+    return null;
+  }
   const k = entry.slice(0, entry.indexOf('='));
-  return entry.includes('=') && isSettingKey(k) ? k : null;
+  return isSettingKey(k) ? k : LEGACY_KEYS[k] ?? null;
 }
 
 /** Defaults overridden by every valid stored entry; unknown or corrupt entries are ignored. */
@@ -108,9 +126,13 @@ export function decodeSettings(entries: ReadonlyArray<string>): Settings {
     if (!key) {
       continue;
     }
+    const legacy = !entry.startsWith(`${key}=`);
+    if (legacy && entries.some(e => e.startsWith(`${key}=`))) {
+      continue; // the current key wins
+    }
     let raw: unknown;
     try {
-      raw = JSON.parse(decodeURIComponent(entry.slice(key.length + 1)));
+      raw = JSON.parse(decodeURIComponent(entry.slice(entry.indexOf('=') + 1)));
     } catch {
       continue;
     }

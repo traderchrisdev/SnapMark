@@ -30,7 +30,7 @@ import {
   tmpRenderPath,
 } from '../core/paths';
 import { marginLayout, scalePoints, scaleThickness, type MarginLayout } from '../core/margin';
-import { inboxPath, snapsDir, type Settings } from '../core/settings';
+import { collects, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
@@ -68,8 +68,8 @@ export async function snapPage(settings: Settings): Promise<void> {
   // DOC reports the page as displayed, which matches the note page on the same device (R3, R16).
   const pageSize = await documentPageSize(docPath, page);
   const inbox = inboxPath(settings);
-  const appendToInbox = settings.collect && (await fs.exists(inbox));
-  const margin = !settings.collect && settings.marginPercent > 0 ? marginLayout(pageSize, settings.marginPercent) : null;
+  const appendToInbox = collects(settings) && (await fs.exists(inbox));
+  const margin = !collects(settings) && settings.marginPercent > 0 ? marginLayout(pageSize, settings.marginPercent) : null;
   // Appending: render at the inbox's page size, so a landscape page is letterboxed into it (R11).
   // Margin mode: render at exactly the shrunk size; the picture shows it 1:1.
   const renderSize = appendToInbox ? await Sn.pageSize(inbox, 0) : margin ? margin.imageSize : pageSize;
@@ -86,11 +86,11 @@ export async function snapPage(settings: Settings): Promise<void> {
   try {
     t.mark(`handwriting(${handwriting.length})`);
     const title = docTitle(docPath);
-    const dir = settings.collect ? snapsDir(settings) : `${snapsDir(settings)}/${title}`;
+    const dir = collects(settings) ? snapsDir(settings) : `${snapsDir(settings)}/${title}`;
     await assertUnlocked(dir);
     await fs.makeDirs(dir);
     // Collect mode without an inbox yet: the normal flows create it as the first snap.
-    const notePath = settings.collect ? inbox : await firstFreePath(snapNoteCandidates(dir, title, page, formatStamp(new Date())));
+    const notePath = collects(settings) ? inbox : await firstFreePath(snapNoteCandidates(dir, title, page, formatStamp(new Date())));
     const isPortrait = renderSize.height >= renderSize.width;
     const blank = appendToInbox || margin ? null : await pooledBlank(pluginDir, isPortrait);
     t.mark('paths');
@@ -109,7 +109,7 @@ export async function snapPage(settings: Settings): Promise<void> {
         where = title;
       } else {
         linked = blank ? await viaOpenedSnap(snap, blank, pluginDir, stay, t) : await viaHelperNote(snap, pluginDir, isPortrait, !stay, t);
-        where = settings.collect ? 'Snaps inbox' : title;
+        where = collects(settings) ? 'Snaps inbox' : title;
       }
     } catch (e) {
       // Leave the user on their document, not on a helper or half-made note.

@@ -22,7 +22,8 @@ import { Native, type Capture, type FrontTask } from '../platform/native';
 import { UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
-import { CAPTURE_PREFIX, closeRegionScreen, deliverToNote, placeRegion, removeCaptures } from './capture';
+import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
+import type { DocPage } from './annotateScreenshot';
 import { askForRegion, type RegionChoice } from './region';
 import { documentPageSize, readHandwriting, snapPage } from './snapPage';
 
@@ -60,6 +61,11 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     await Native.sleep(MENU_CLOSE_MS);
     [front, shot] = await Promise.all([Native.foreground(), Native.captureScreen(raw, fitInsetsDp('off'))]);
     t.mark('capture');
+  }
+
+  if (settings.destination === 'current') {
+    await pasteRegion(settings, { front, raw, shot }, { docPath, page }, out, pluginDir, t);
+    return;
   }
 
   // Started now, used after the user has drawn the box.
@@ -121,6 +127,32 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   } finally {
     Sn.recycle(strokes);
   }
+}
+
+/**
+ * "Into the note I'm working in": the box is cut from the screen capture, so your ink and highlights
+ * come along flattened into the picture (a picture can't hold strokes).
+ */
+async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out: string, pluginDir: string, t: StepTimer): Promise<void> {
+  let choice: RegionChoice = null;
+  let pasted: Pasted | null = null;
+  try {
+    choice = await askForRegion({ path: from.raw, width: from.shot.width, height: from.shot.height }, 'Whole page');
+    t.mark('region');
+    if (choice && choice !== 'whole') {
+      pasted = await cutRegion(from.raw, out, choice);
+    }
+  } finally {
+    await closeRegionScreen('snap region', choice);
+  }
+  if (!pasted) {
+    await removeCaptures(pluginDir);
+    if (choice === 'whole') {
+      await snapPage(settings);
+    }
+    return;
+  }
+  await pasteIntoNote('snap region', pasted, from.front, doc, null, settings, pluginDir, t);
 }
 
 /** The page's strokes that are mostly inside the box, moved and scaled into the placed cut-out. */

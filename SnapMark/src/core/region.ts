@@ -121,3 +121,29 @@ export function mostlyInside(points: ReadonlyArray<Point>, box: Rect): boolean {
   const inside = points.filter(p => p.x >= box.left && p.x <= box.right && p.y >= box.top && p.y <= box.bottom).length;
   return points.length > 0 && inside * 2 >= points.length;
 }
+
+/** Where a cut-out pasted into a note goes: below what's on the page, or at the top of a new page after it. */
+export interface PastePlan {
+  rect: Rect;
+  newPage: boolean;
+}
+
+/**
+ * The cut-out at its own size (shrunk only to fit beside the insets), centered, `margin` below the
+ * page's lowest content (`contentBottom`, -1 when empty). If it and `reserveBelow` (room for the link)
+ * don't fit above the bottom inset there, it goes at the top of a new page.
+ */
+export function pastePlacement(page: Size, image: Size, contentBottom: number, insets: Insets, margin: number, reserveBelow: number): PastePlan {
+  const left0 = insets.left + margin;
+  const availW = page.width - insets.right - margin - left0;
+  const top0 = insets.top + margin;
+  const limit = page.height - insets.bottom - margin;
+  const scale = Math.min(1, availW / image.width, (limit - reserveBelow - top0) / image.height);
+  const width = Math.round(image.width * scale);
+  const height = Math.round(image.height * scale);
+  const left = left0 + Math.round((availW - width) / 2);
+  const below = contentBottom < 0 ? top0 : Math.max(top0, contentBottom + margin);
+  const newPage = below + height + reserveBelow > limit;
+  const top = newPage ? top0 : below;
+  return { rect: { left, top, right: left + width, bottom: top + height }, newPage };
+}

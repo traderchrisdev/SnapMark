@@ -69,6 +69,19 @@ In a PDF or EPUB, tap **Snap region** and [drag a box](#choosing-a-region) over 
 
 **Whole page** on the same screen does a normal Snap page.
 
+## Paste into the note you're working in
+
+Reading a PDF alongside a note of your own? Set **Where snaps go → Into the note I'm working in**. Then after **Snap region** (or a tap on the floating button):
+- Notes comes back with **the note it last had open**, on the page you were on;
+- the cut-out is placed on that page as a **picture**, at the size you saw it, **below what's already on the page**. If there's no room, it goes on a new page right after. Lasso it to move or resize it;
+- from a PDF or EPUB, a `↩ <Book>, p. N` link goes just under it. From another app, a small caption says where and when it came from, for example `Kindle · 16 Oct 2026, 15:07`.
+
+Things to know:
+- Open your note in Notes first. If Notes has no note open, SnapMark asks you to open one rather than guessing.
+- Your handwriting and highlights inside the box are **part of the picture**, not separate ink.
+- **Whole screen** from the floating button pastes the whole screen. In a PDF or EPUB, **Whole page** and Snap page still make a note of their own, as do the screenshot buttons.
+- **After a snap → Stay here** pastes and brings you back to the app or document you were in.
+
 ## The floating capture button
 
 Turn it on in SnapMark's settings (**Floating capture button → On**). A small button with a viewfinder icon then floats over everything: notes, documents, Kindle, the browser, Settings.
@@ -87,7 +100,7 @@ Turn it on in SnapMark's settings (**Floating capture button → On**). A small 
   - `<Book> - p<N> - <time>` from a PDF or EPUB. These also get the `↩ <Book>, p. N` link back to the page;
   - `<note title> - <time>` from a note.
 - **After a snap** applies here too: **Open the snap** opens the new note; **Stay here** saves it and brings you back to the app you were in.
-- **Where snaps go → One "Snaps inbox"** turns each capture into the next page of your inbox notebook instead of a new note.
+- **Where snaps go → One "Snaps inbox"** turns each capture into the next page of your inbox notebook instead of a new note. **Into the note I'm working in** [pastes it into your open note](#paste-into-the-note-youre-working-in).
 
 ## Choosing a region
 
@@ -125,7 +138,7 @@ Open them from **Settings → Apps → Plugins → SnapMark**, then SnapMark's s
 | Setting | What it does |
 |---|---|
 | Save snaps in | The folder under `Note/` (default `Snaps`) |
-| Where snaps go | **A new note each**, or **One "Snaps inbox"**: every snap becomes the next page of one notebook |
+| Where snaps go | **A new note each**; **One "Snaps inbox"**: every snap becomes the next page of one notebook; or **Into the note I'm working in**: region snaps are [pasted onto the open note's page](#paste-into-the-note-youre-working-in) |
 | Margin mode | Page snaps shrunk to 80/75/66% with room to write (own-note snaps only) |
 | After a snap | **Open the snap**, or **Stay here** (save and keep reading) |
 | Text-selection highlights | Keep them in the page image, or leave them out |

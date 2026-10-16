@@ -96,14 +96,22 @@ export function SettingsScreen() {
         />
       </Section>
 
-      <Section label="Where snaps go" hint={`Inbox: every snap becomes the next page of Note/${cleanFolder ?? '…'}/Snaps inbox.note`}>
+      <Section
+        label="Where snaps go"
+        hint={
+          settings.destination === 'current'
+            ? 'Region snaps are pasted as a picture onto the page of the note open in Notes (your ink is flattened into it). Page snaps and screenshots still get a note each.'
+            : `Inbox: every snap becomes the next page of Note/${cleanFolder ?? '…'}/Snaps inbox.note`
+        }
+      >
         <Choice
           options={[
-            { value: false, label: 'A new note each' },
-            { value: true, label: 'One "Snaps inbox"' },
+            { value: 'note', label: 'A new note each' },
+            { value: 'inbox', label: 'One "Snaps inbox"' },
+            { value: 'current', label: "Into the note I'm working in" },
           ]}
-          value={settings.collect}
-          onChange={v => update('collect', v)}
+          value={settings.destination}
+          onChange={v => update('destination', v)}
         />
       </Section>
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0 (2026-10-16)
+
+- **Paste into the note you're working in:** a new choice under **Where snaps go**. After Snap region or a tap on the floating button, Notes comes back with the note it last had open, and the cut-out is placed on the page you were on as a picture you can lasso, below what's already there (or on a new page after it when the page is full). From a PDF or EPUB, a `↩ <Book>, p. N` link goes just under it; from another app, a caption with the app's name and the time. Your ink inside the box is part of the picture.
+- Your earlier **Where snaps go** choice is kept.
+
 ## 0.11.5 (2026-10-16)
 
 - The plugin's description (shown in Settings → Apps → Plugins) now says what the floating button does: it captures the screen only when you tap it, and nothing leaves your device. No other changes.
