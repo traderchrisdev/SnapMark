@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SnapMark: snap anything on your Supernote into a note</title>
-  <meta name="description" content="A free, open-source Supernote plugin. Tap a floating button in any app, drag a box over the part you want, and write on it. PDF snaps keep your handwriting as editable ink.">
+  <meta name="description" content="A free, open-source Supernote plugin. Tap a floating button in any app, drag a box over the part you want, and write on it, in a new note or the one you're working in. PDF snaps keep your handwriting as editable ink.">
   <link rel="canonical" href="https://snapmark.ink/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="color-scheme" content="light dark">
@@ -99,12 +99,12 @@
           <p>Every snap from a document carries a <span class="nowrap">↩ Book, p.&nbsp;42</span> link. One tap and you're back where you were reading.</p>
         </article>
         <article>
-          <h3>Screenshot tools</h3>
-          <p>Turn a normal Supernote screenshot into a note, or drop it onto the page you're writing on.</p>
+          <h3>Into the note you're writing</h3>
+          <p>Reading a PDF next to your own notes? A region snap can go straight onto your current page, below what's there, with a link back to the PDF page.</p>
         </article>
         <article>
-          <h3>Inbox, margins, export</h3>
-          <p>Collect every snap in one notebook, leave a writing margin, or export a page as PNG.</p>
+          <h3>Inbox, margins, screenshots</h3>
+          <p>Collect every snap in one notebook, leave a writing margin, turn a Supernote screenshot into a note, or export a page as PNG.</p>
         </article>
       </div>
       <div class="pair">
@@ -132,6 +132,14 @@
           <p>It's tested on the Manta. It's written to work on the Nomad, A5&nbsp;X and A6&nbsp;X too, but those are untested so far. If you try one, please report how it went on GitHub.</p>
         </details>
         <details>
+          <summary>It says “not compatible with the current system version”.</summary>
+          <p>Update to SnapMark 0.13.0 or later. Version 0.12.0 was built with Supernote's newest plugin library, which some firmware refuses (a Nomad on Chauvet 3.29.45 beta did). 0.13.0 uses the older library that every firmware with plugin support accepts. If it still happens, please <a href="https://github.com/traderchrisdev/SnapMark/issues/new/choose">report it</a> with your model and firmware version.</p>
+        </details>
+        <details>
+          <summary>Can I paste a snap into a note I'm already writing?</summary>
+          <p>Yes. In SnapMark's settings, set <strong>Where snaps go</strong> to <strong>Into the note I'm working in</strong>. Open your note, go to the PDF and use Snap region (or the floating button): the cut-out lands on your current page below what's there, as a picture you can move with the lasso, with a link back to the PDF page. Your handwriting inside the box becomes part of the picture.</p>
+        </details>
+        <details>
           <summary>Does it send anything anywhere?</summary>
           <p>No. SnapMark asks only for file access and has no internet access. Your snaps are ordinary notes on your device.</p>
         </details>
@@ -145,7 +153,7 @@
         </details>
         <details>
           <summary>Where are my snaps saved?</summary>
-          <p>In <code>Note/Snaps/</code>: page snaps in a folder per book, captures in <code>Snaps/Screenshots/</code>, and the optional inbox at <code>Snaps/Snaps inbox.note</code>. You can change the folder in SnapMark's settings.</p>
+          <p>In <code>Note/Snaps/</code>: page snaps in a folder per book, captures in <code>Snaps/Screenshots/</code>, and the optional inbox at <code>Snaps/Snaps inbox.note</code>. With <strong>Into the note I'm working in</strong>, region snaps go into your own note instead. You can change the folder in SnapMark's settings.</p>
         </details>
         <details>
           <summary>How do I update?</summary>

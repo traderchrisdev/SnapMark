@@ -17,7 +17,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > • **Paste into your note:** a region snap goes onto the page of the note you're working in, below what's there, with a link back to the PDF page.
 > • **Annotate / Insert screenshot**, **Export page as PNG**, a **Snaps inbox** that collects every snap in one notebook, and a **margin mode** for writing room.
 >
-> Asks only for file access and has no internet access: nothing leaves your device. Free and open source (MIT). Tested on Manta. Guide and FAQ: snapmark.ink
+> Asks only for file access and has no internet access: nothing leaves your device. Works on firmware with plugin support (built with Supernote's plugin library 0.1.65). Free and open source (MIT). Tested on Manta. Guide and FAQ: snapmark.ink
 
 ## Note for the reviewer
 
@@ -46,3 +46,4 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > **How to test:**
 > 1. In a PDF, use the toolbar's plugin menu → Snap region, drag a box → Snap region. A new note opens with that part and a ↩ link.
 > 2. In Settings → Apps → Plugins → SnapMark → settings, turn on "Floating capture button". Tap it in any app, drag a box → Snap region.
+> 3. Optional: in SnapMark's settings set "Where snaps go" to "Into the note I'm working in", open any note, then do step 1 again. The cut-out is placed on that note's page with a ↩ link under it.

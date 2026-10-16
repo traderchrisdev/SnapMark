@@ -7,6 +7,7 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 - [First run](#first-run)
 - [Snap a document page](#snap-a-document-page)
 - [Snap part of a page](#snap-part-of-a-page)
+- [Paste into the note you're working in](#paste-into-the-note-youre-working-in)
 - [The floating capture button](#the-floating-capture-button)
 - [Choosing a region](#choosing-a-region)
 - [Annotate a screenshot](#annotate-a-screenshot)
