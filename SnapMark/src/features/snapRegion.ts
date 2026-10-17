@@ -19,7 +19,7 @@ import type { Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { log, logError } from '../platform/log';
 import { Native, type Capture, type FrontTask } from '../platform/native';
-import { UserFacingError } from '../sdk/errors';
+import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
@@ -76,15 +76,24 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
       return false;
     },
   );
-  const reading = settings.includeHandwriting
-    ? readHandwriting(docPath, page, settings.highlightStyle).catch(e => {
-        logError('snap region: read ink (snapping without it)', e);
-        return { strokes: [], markers: [] } as Handwriting;
-      })
-    : Promise.resolve({ strokes: [], markers: [] } as Handwriting);
+  // The ink, read in DOC while you draw the box. On a document's last page DOC refuses it (R80): then it
+  // is read once the new note is open in Notes (Delivery.lateInk).
+  const lastPage = await isLastPage(page);
+  const reading: Promise<Handwriting | null> = !settings.includeHandwriting
+    ? Promise.resolve({ strokes: [], markers: [] })
+    : lastPage
+      ? Promise.resolve(null)
+      : readHandwriting(docPath, page, settings.highlightStyle).catch(e => {
+          if (errorCode(e) === CODE_PAGE_NOT_FOUND) {
+            return null;
+          }
+          logError('snap region: read ink (snapping without it)', e);
+          return { strokes: [], markers: [] };
+        });
 
   let choice: RegionChoice = null;
   let strokes: Element[] = [];
+  let lateInk: (() => Promise<Element[]>) | undefined;
   let isPortrait = pageSize.height >= pageSize.width;
   try {
     choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole page');
@@ -93,38 +102,22 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
       const box = choice;
       const [rendered, read] = await Promise.all([rendering, reading]);
       t.mark('render');
-      // Underlines go just under the highlighted text the render shows (R79); the render is in page px.
-      const infos = await markerInfos(read.markers, pageSize).catch(() => []);
-      Sn.recycle(read.markers);
-      const bottoms =
-        rendered && infos.length && Native.available
-          ? (
-              await Native.inspectRender(
-                render,
-                infos.map(i => ({ left: i.band.left, right: i.band.right, y: i.band.y, maxDy: LINE_BOTTOM_SEARCH_PX })),
-                [],
-              ).catch(e => {
-                logError('snap region: find the highlighted lines (thickness-based underlines)', e);
-                return null;
-              })
-            )?.lineBottoms ?? null
-          : null;
-      const handwriting = [...(await underlinesFrom(infos, pageSize, bottoms)), ...read.strokes];
-      if (infos.length) {
-        log(`snap region: ${infos.length} marker(s); line bottoms ${JSON.stringify(bottoms)}`);
-      }
-      try {
-        if (rendered) {
-          const crop = captureToPage(box, shot, pageSize);
-          const dst = await placeRegion(render, out, crop, pageSize, settings);
-          strokes = await regionStrokes(handwriting, crop, dst, pageSize);
+      if (rendered) {
+        const crop = captureToPage(box, shot, pageSize);
+        const dst = await placeRegion(render, out, crop, pageSize, settings);
+        if (read) {
+          strokes = await regionInk(read, render, crop, dst, pageSize);
         } else {
-          // No render: cut the screen capture, which has the ink in it already.
-          await placeRegion(raw, out, box, shot, settings);
-          isPortrait = shot.height >= shot.width;
+          log('snap region: last page of the document; reading the ink once Notes has the note (R80)');
+          lateInk = async () => regionInk(await readHandwriting(docPath, page, settings.highlightStyle), render, crop, dst, pageSize);
         }
-      } finally {
-        Sn.recycle(handwriting);
+      } else {
+        // No render: cut the screen capture, which has the ink in it already.
+        if (read) {
+          Sn.recycle([...read.strokes, ...read.markers]);
+        }
+        await placeRegion(raw, out, box, shot, settings);
+        isPortrait = shot.height >= shot.width;
       }
       t.mark(`cut (${strokes.length} strokes)`);
     }
@@ -136,7 +129,9 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     // DOC is in front again: wait for the background work, clean up, and for "Whole page" snap it all.
     await rendering;
     const read = await reading;
-    Sn.recycle([...read.strokes, ...read.markers]);
+    if (read) {
+      Sn.recycle([...read.strokes, ...read.markers]);
+    }
     await removeCaptures(pluginDir);
     if (choice === 'whole') {
       await snapPage(settings);
@@ -146,7 +141,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   try {
     await deliverToNote(
       'snap region',
-      { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes, inkPageSize: pageSize },
+      { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes, inkPageSize: pageSize, lateInk },
       settings,
       pluginDir,
       t,
@@ -180,6 +175,37 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
     return;
   }
   await pasteIntoNote('snap region', pasted, from.front, doc, null, settings, pluginDir, t);
+}
+
+/**
+ * The ink inside the box, moved and scaled into the placed cut-out: the strokes as they are, each
+ * marker as an underline just under its text line in `render` (page px). Recycles `read`.
+ */
+async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rect, pageSize: Size): Promise<Element[]> {
+  const infos = await markerInfos(read.markers, pageSize).catch(() => []);
+  Sn.recycle(read.markers);
+  const bottoms =
+    infos.length && Native.available
+      ? (
+          await Native.inspectRender(
+            render,
+            infos.map(i => ({ left: i.band.left, right: i.band.right, y: i.band.y, maxDy: LINE_BOTTOM_SEARCH_PX })),
+            [],
+          ).catch(e => {
+            logError('snap region: find the highlighted lines (thickness-based underlines)', e);
+            return null;
+          })
+        )?.lineBottoms ?? null
+      : null;
+  const handwriting = [...(await underlinesFrom(infos, pageSize, bottoms)), ...read.strokes];
+  if (infos.length) {
+    log(`snap region: ${infos.length} marker(s); line bottoms ${JSON.stringify(bottoms)}`);
+  }
+  try {
+    return await regionStrokes(handwriting, crop, dst, pageSize);
+  } finally {
+    Sn.recycle(handwriting);
+  }
 }
 
 /** The page's strokes that are mostly inside the box, moved and scaled into the placed cut-out. */

@@ -104,9 +104,10 @@ def ui_nodes():
     sh('uiautomator dump /sdcard/snapmark-ui.xml', check=False)
     xml = sh('cat /sdcard/snapmark-ui.xml', check=False)
     nodes = {}
-    for m in re.finditer(r'text="([^"]+)"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml):
-        l, t, r, b = map(int, m.groups()[1:])
-        nodes[m.group(1)] = ((l + r) // 2, (t + b) // 2)
+    # uiautomator quotes a text containing " with single quotes.
+    for m in re.finditer(r'text=(?:"([^"]+)"|\'([^\']+)\')[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml):
+        l, t, r, b = map(int, m.groups()[2:])
+        nodes[m.group(1) or m.group(2)] = ((l + r) // 2, (t + b) // 2)
     return nodes
 
 
@@ -141,9 +142,92 @@ def open_doc(page):
     return False
 
 
+# ---------------------------------------------------------------- Settings app: install, SnapMark settings
+
+SETTINGS_PKG = 'com.ratta.settings'
+BUILD = os.path.join(HERE, '..', 'build', 'outputs', 'SnapMark.snplg')
+
+
+def tap_label(label, timeout=10, pick=None):
+    n = wait_ui(label, timeout)
+    if not n:
+        raise SystemExit(f'"{label}" not on screen')
+    tap(pick(n) if pick else n[label])
+    time.sleep(1.5)
+    return n
+
+
+def close_plugin_screens():
+    """SnapMark's own screens (settings, region) float over every app: close any left open."""
+    for _ in range(3):
+        n = ui_nodes()
+        if 'SnapMark settings' in n and 'Close' in n:
+            tap(n['Close'])
+        elif 'Drag over the part you want to keep.' in n and 'Cancel' in n:
+            tap(n['Cancel'])
+        elif 'Note Not Found' in n and 'OK' in n:
+            tap(n['OK'])
+        else:
+            return
+        time.sleep(1.5)
+
+
+def plugin_page():
+    """Settings → Apps → Plugins → SnapMark (the page with Version, Settings, Uninstall)."""
+    sh('input keyevent KEYCODE_WAKEUP')
+    close_plugin_screens()
+    sh(f'am force-stop {SETTINGS_PKG}')
+    sh(f'am start -n {SETTINGS_PKG}/.SettingsActivity')
+    time.sleep(2.5)
+    tap_label('Apps')
+    tap_label('Plugins')
+
+
+def installed_version():
+    plugin_page()
+    tap_label('SnapMark', pick=lambda n: n['SnapMark'])
+    n = ui_nodes()
+    v = next((k for k in n if k.startswith('Version: ')), '')
+    return v.replace('Version: ', ''), n
+
+
+def install(snplg):
+    want = re.search(r'"versionName":\s*"([^"]+)"', subprocess.run(['unzip', '-p', snplg, 'PluginConfig.json'], capture_output=True, text=True).stdout)
+    want = want.group(1) if want else '?'
+    name = f'SnapMark-v{want}.snplg'
+    adb('push', snplg, '/sdcard/MyStyle/' + name)
+    plugin_page()
+    tap_label('Select Plugin Package')
+    n = wait_ui(name, 10)
+    if not n:
+        raise SystemExit(f'{name} not in the package picker')
+    x, y = n[name]
+    tap((x, y - 150))  # the file's icon, above its name
+    time.sleep(1.5)
+    tap_label('Install')
+    time.sleep(3)
+    got = next((k for k in ui_nodes() if k.startswith('Version: ')), '').replace('Version: ', '')
+    if got != want:
+        raise SystemExit(f'install: expected version {want}, the plugin page shows {got or "?"}')
+    print(f'installed SnapMark {got}')
+    sh('input keyevent KEYCODE_HOME')
+
+
+def snapmark_settings(*choices):
+    """Open SnapMark's settings screen and tap each option label in turn (e.g. '75%', 'Off')."""
+    _, n = installed_version()
+    rows = [v for k, v in n.items() if k == 'Settings' and v[0] > 600]
+    tap(rows[0] if rows else n['Settings'])
+    time.sleep(2.5)
+    for label in choices:
+        tap_label(label)
+    tap_label('Close')
+    sh('input keyevent KEYCODE_HOME')
+
+
 # ---------------------------------------------------------------- note rendering
 
-def render_note(path, out_png):
+def render_note(path, out_png, page=0):
     try:
         import supernotelib as sn
         from supernotelib.converter import ImageConverter
@@ -151,7 +235,7 @@ def render_note(path, out_png):
         raise SystemExit('supernotelib is missing: python3 -m venv devtest/.venv && devtest/.venv/bin/pip install supernotelib, '
                          'then run with devtest/.venv/bin/python')
     notebook = sn.load_notebook(path)
-    img = ImageConverter(notebook).convert(0)
+    img = ImageConverter(notebook).convert(page)
     img.save(out_png)
     return notebook.get_total_pages(), img.convert('L')
 
@@ -300,16 +384,35 @@ def check_settings(settings):
     return problems
 
 
+SNAP_DIRS = ['/storage/emulated/0/Note/Snaps/SnapMark test', '/storage/emulated/0/Note/Snaps/Screenshots', '/storage/emulated/0/Note/Snaps']
+
+
+def note_files():
+    out = sh(' ; '.join(f'ls {shlex.quote(d)}/*.note 2>/dev/null' for d in SNAP_DIRS), check=False)
+    return {l.strip() for l in out.splitlines() if l.strip().endswith('.note')}
+
+
 def snap(page, region_box=None):
     """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None)."""
     if not open_doc(page):
         return [], None
+    # A full log buffer makes logd drop the plugin host's lines first (it is uid 1000, the biggest
+    # logger); clear it so this snap's lines survive.
+    adb('logcat', '-c', check=False)
+    before = note_files()
     stamp = device_time()
     b = bubble_center()
     if not b:
         return ['test: floating button not found'], None
     tap(b)
-    nodes = wait_ui('Whole page', 12)
+    nodes = wait_ui('Whole page', 25)
+    if not nodes:
+        # Right after another snap the selection screen can come up unseen; close it and try once more.
+        close_plugin_screens()
+        if not open_doc(page):
+            return snapmark_lines(stamp), None
+        tap(bubble_center() or b)
+        nodes = wait_ui('Whole page', 25)
     if nodes:
         if region_box:
             l, t, r, bt = region_box
@@ -321,7 +424,12 @@ def snap(page, region_box=None):
     pattern = r'^snap region: .* -> (\S.*\.note)' if region_box else r'^snap page \d+ -> (\S.*?\.note)'
     m = wait_for(stamp, pattern, 45)
     time.sleep(2)
-    return snapmark_lines(stamp), (m.group(1) if m else None)
+    path = m.group(1) if m else None
+    if not path:
+        # The log line may still be missing: a note that appeared during this snap is the snap.
+        new = sorted(note_files() - before)
+        path = new[0] if len(new) == 1 else None
+    return snapmark_lines(stamp), path
 
 
 def cmd_run(args):
@@ -331,9 +439,10 @@ def cmd_run(args):
     os.makedirs(out_dir, exist_ok=True)
     if 'device' not in adb('get-state', check=False):
         raise SystemExit('no device: plug in the Supernote and allow USB debugging')
-    if args.push_build:
-        adb('push', args.push_build, '/sdcard/MyStyle/' + os.path.basename(args.push_build))
-        input(f'Pushed. Install MyStyle/{os.path.basename(args.push_build)} on the device, then press Enter... ')
+    sh('input keyevent KEYCODE_WAKEUP')
+    close_plugin_screens()
+    if args.install:
+        install(args.install if args.install != 'build' else BUILD)
 
     # The document app logs every ink stroke it hands out; the default 256 KB log buffer drops SnapMark's lines.
     adb('logcat', '-G', '16M', check=False)
@@ -364,22 +473,94 @@ def cmd_run(args):
         results.append(res)
 
     if not args.pages or 'region' in (args.extra or ''):
-        res = Result('Snap region (page 1, lines 02-08)')
         lines = {l['n']: l for l in layout['pages'][0]['lines']}
-        box = (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)
-        log, path = snap(1, box)
-        res.check(path, 'snap finished', path or 'no "snap region" log line')
-        if path:
-            made.append(path)
-            local = os.path.join(out_dir, 'region.note')
-            adb('pull', path, local)
-            total, _ = render_note(local, local.replace('.note', '.png'))
-            res.check(total == 1, 'note has one page', f'{total} pages')
-            if with_ink:
-                bl = next((l for l in log if 'line bottoms' in l), '')
-                res.check(bl and '-1' not in bl, 'every highlight found its text line', bl or 'no marker line')
-        res.log = log
-        results.append(res)
+        regions = [
+            (1, 'lines 02-08', (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
+            # The last page: title and the ink under it; its ink is read through Notes (R80).
+            (LAST_PAGE, 'title and ink', (120, 240, 1800, 1100)),
+        ]
+        for page, what, box in regions:
+            res = Result(f'Snap region (page {page}, {what})')
+            log, path = snap(page, box)
+            res.check(path, 'snap finished', path or 'no "snap region" log line')
+            if path:
+                made.append(path)
+                local = os.path.join(out_dir, f'region-p{page}.note')
+                adb('pull', path, local)
+                total, _ = render_note(local, local.replace('.note', '.png'))
+                res.check(total == 1, 'note has one page', f'{total} pages')
+                if with_ink and page == LAST_PAGE:
+                    # The note's own stroke data (the "late ink" log line can be dropped by logcat).
+                    inked = 1 in mark_pages_with_ink(local)
+                    done = next((l for l in log if l.startswith('snap region: ') and ' -> ' in l), '')
+                    res.check(inked and 'late ink' in done, 'last page: ink added once Notes had the note',
+                              'stroke data on the page' if inked else 'no stroke data in the note')
+                elif with_ink:
+                    bl = next((l for l in log if 'line bottoms' in l), '')
+                    if bl:
+                        res.check('-1' not in bl, 'every highlight found its text line', bl)
+                    res.check(any(re.search(r'ink\(\d+\)', l) for l in log) or bl, 'handwriting copied', '')
+            res.log = log
+            results.append(res)
+
+    if not args.pages and not args.no_margin:
+        # Margin mode: switch it on through SnapMark's settings, snap, switch it off again.
+        snapmark_settings('75%')
+        restart_host()
+        try:
+            for page in (1, LAST_PAGE):
+                res = Result(f'Margin mode 75% (page {page})')
+                log, path = snap(page)
+                res.check(path, 'snap finished', path or 'no "snap page" log line')
+                done = next((l for l in log if re.match(r'^snap page \d+ -> ', l)), '')
+                res.check('margin 75%' in done, 'made in margin mode', done[-90:])
+                if path:
+                    made.append(path)
+                    local = os.path.join(out_dir, f'margin-p{page}.note')
+                    adb('pull', path, local)
+                    total, _ = render_note(local, local.replace('.note', '.png'))
+                    res.check(total == 1, 'note has one page', f'{total} pages')
+                    if with_ink:
+                        ins = next((l for l in log if 'elements(' in l or l.startswith('snap page: inserted')), '')
+                        m = re.search(r'elements\((\d+) strokes\)', done)
+                        k = int(m.group(1)) if m else -1
+                        res.check(k > 0, 'handwriting copied' + (' (last page, read in Notes)' if page == LAST_PAGE else ''), f'{k} strokes')
+                res.log = log
+                results.append(res)
+        finally:
+            snapmark_settings('Off')
+            restart_host()
+
+    inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
+    if not args.pages and not args.no_inbox:
+        if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
+            print('  (skipping the Snaps inbox snaps: you have an inbox, and the test does not write into it)')
+        else:
+            # Snaps inbox: a region snap of page 1 starts it, one of the last page becomes its page 2.
+            snapmark_settings('One "Snaps inbox"')
+            restart_host()
+            try:
+                lines = {l['n']: l for l in layout['pages'][0]['lines']}
+                for page, box in ((1, (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
+                                  (LAST_PAGE, (120, 240, 1800, 1100))):
+                    res = Result(f'Snaps inbox: region of page {page}')
+                    log, path = snap(page, box)
+                    res.check(path and path.endswith('Snaps inbox.note'), 'went into the inbox', path or 'no "snap region" log line')
+                    if path and page == LAST_PAGE:
+                        local = os.path.join(out_dir, 'inbox.note')
+                        adb('pull', path, local)
+                        total, _ = render_note(local, local.replace('.note', '-p2.png'), 1)
+                        res.check(total == 2, 'inbox has two pages', f'{total} pages')
+                        if with_ink:
+                            res.check(2 in mark_pages_with_ink(local), 'last page: ink added to inbox page 2',
+                                      f'pages with stroke data: {mark_pages_with_ink(local)}')
+                    res.log = log
+                    results.append(res)
+            finally:
+                if not args.keep:
+                    sh(f'rm -f {shlex.quote(inbox)}', check=False)
+                snapmark_settings('A new note each')
+                restart_host()
 
     if not args.keep:
         for path in made:
@@ -408,7 +589,10 @@ def main():
     r.add_argument('--pages', help='comma-separated pages to snap (default 1,2,3 plus a region snap)')
     r.add_argument('--extra', help='"region" to add the region snap when --pages is given')
     r.add_argument('--keep', action='store_true', help='keep the snaps on the device')
-    r.add_argument('--push-build', metavar='SNPLG', help='push this package to MyStyle first and wait for you to install it')
+    r.add_argument('--install', nargs='?', const='build', metavar='SNPLG',
+                   help='install a package first through Settings (default: build/outputs/SnapMark.snplg)')
+    r.add_argument('--no-margin', action='store_true', help='skip the margin-mode snaps (they switch the setting to 75%% and back)')
+    r.add_argument('--no-inbox', action='store_true', help='skip the Snaps inbox snaps (only run when there is no inbox yet)')
     args = p.parse_args()
     {'setup': cmd_setup, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 

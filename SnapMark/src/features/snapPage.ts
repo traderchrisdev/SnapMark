@@ -269,13 +269,30 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
     await Sn.createNote(snap.notePath, BLANK_TEMPLATE, isPortrait);
     t.mark('hop+createNote');
   }
+  // Last page: NOTE has to be in front to read the ink (R80). The hop path already has it there; with a
+  // pooled blank, open the snap first and edit it in place (then NOTE reloads it, R52).
+  const late = snap.handwriting === null;
+  let opened = false;
+  if (late && blank) {
+    await Sn.openFile(snap.notePath, 0);
+    await waitUntilCurrent(snap.notePath);
+    opened = true;
+    t.mark('open');
+  }
+  let ink: Element[] = snap.handwriting ?? [];
+  if (late) {
+    ink = await buildInk(snap.docPath, snap.page, snap.pageSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
+      logError('read the last page\'s handwriting in Notes (snapping without it)', e);
+      return [] as Element[];
+    });
+  }
   const noteSize = await Sn.pageSize(snap.notePath, 0);
   const sameFrame = noteSize.width === snap.pageSize.width && noteSize.height === snap.pageSize.height;
   const picture = await Sn.newPictureElement(snap.render, layout.rect, 0);
-  if (snap.handwriting === null) {
-    toast('Margin mode can\'t copy handwriting from the last page of a document yet.', true);
+  const strokes = sameFrame ? await scaledStrokes(ink, layout, snap.pageSize, noteSize) : [];
+  if (late) {
+    Sn.recycle(ink);
   }
-  const strokes = sameFrame && snap.handwriting ? await scaledStrokes(snap.handwriting, layout, snap.pageSize, noteSize) : [];
   const link = await Sn.newLinkElement(backlinkSpec(snap.docPath, snap.title, snap.page, noteSize), 0);
   const elements = [picture, ...strokes, link];
   t.mark(`elements(${strokes.length} strokes)`);
@@ -285,12 +302,16 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   } finally {
     Sn.recycle(elements);
   }
-  if (open) {
+  if (opened) {
+    await ensureStillCurrent(snap.notePath);
+    await reloadAndShow(null); // NOTE shows the finished page (and drops its stale copy if we leave)
+    t.mark('reload');
+  } else if (open) {
     await Sn.openFile(snap.notePath, 0);
     await waitUntilCurrent(snap.notePath);
     t.mark('open');
   }
-  if (open || !blank) {
+  if (open || opened || !blank) {
     await refillPool(pluginDir); // only possible with NOTE in front
     t.mark('refill');
   }

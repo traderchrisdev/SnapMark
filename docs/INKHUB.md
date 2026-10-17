@@ -21,7 +21,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.13.1. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.13.2. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).

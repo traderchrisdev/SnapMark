@@ -22,17 +22,20 @@ That keeps your ink as `devtest/fixtures/SnapMark test.pdf.mark`. Commit it; eve
 
 ## Every time
 
-Install the build on the device (Settings → Apps → Plugins), then:
+Build, then install and test in one go:
 
 ```bash
-npm run devtest
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 npm run build:plugin
+npm run devtest -- --install
 ```
 
 - SnapMark's settings must be the defaults for snaps (a new note each, margin mode off, copy
   handwriting, underline marker highlights) and the floating button must be on. The test checks.
 - It restarts PluginHost, so the build you just installed is the one that runs.
-- `--pages 2` snaps one page; `--keep` keeps the notes on the device; `--push-build <snplg>` copies a
-  package to `MyStyle/` and waits while you install it.
+- `--install` installs `build/outputs/SnapMark.snplg` first, through Settings → Apps → Plugins, and checks the
+  version; `--install <snplg>` installs another package. `--pages 2` snaps one page; `--keep` keeps the
+  notes on the device; `--no-margin` skips the margin-mode snaps.
+- Margin mode is switched to 75% through SnapMark's own settings screen for two snaps, then back to Off.
 - The report, the pulled notes, their PNGs and the full log go to `devtest/out/<time>/`.
 
 ## What it checks
@@ -43,7 +46,9 @@ npm run devtest
 | 2 | Text to the bottom, header top-right | page shrunk for a link strip; underline under line 05 |
 | 3 | Text to the bottom, top-right blank | link top-right; underline under line 10 |
 | 4 | Last page | the ink is read in Notes (the document app refuses it, R80); highlight found its line |
-| region | Snap region over lines 02–08 of page 1 | snap made; highlights found their lines |
+| region p1 | Snap region over lines 02–08 of page 1 | snap made; highlights found their lines |
+| region p4 | Snap region on the last page | the ink is added once Notes has the note (R80) |
+| margin p1, p4 | Snap page with margin mode 75% | made in margin mode; ink copied (on the last page, read in Notes) |
 
 Each underline must sit between its line's baseline and the next line's top. `make_test_pdf.py`
 regenerates the PDF and `layout.json` (every line's position in page px); change both together, and

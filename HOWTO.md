@@ -217,7 +217,7 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 - **Drawing the box** on e-ink lags slightly behind your finger.
 - **Pen taps on the floating button** over a page also write a dot there (see [where to keep it](#the-floating-capture-button)). In a PDF the safe spots aren't known yet.
 - **Margin mode** copies your strokes but not shapes from the page.
-- **Last page of a document:** Snap page copies its handwriting (read through Notes, because the document app refuses that page to plugins), but Snap region and margin mode leave it out.
+- **Last page of a document:** the document app refuses that page to plugins, so SnapMark reads its handwriting through Notes. A region snap from it takes a few seconds longer, and with **Stay here** Notes opens briefly before you're taken back.
 - **Annotate screenshot** can't tell where a native screenshot came from, so those notes are named `Screenshot - <time>`.
 
 ## Report a problem

@@ -19,6 +19,7 @@ import { hasFilePermissions } from '../platform/permissions';
 import { CODE_NOT_ALLOWED_HERE, CODE_NOTE_NOT_READY, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
+import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { setRoute } from '../ui/route';
 
 import { snapScreenshot, type DocPage } from './annotateScreenshot';
@@ -77,6 +78,11 @@ export interface Delivery {
   elements?: Element[];
   /** The page size that ink was made for. */
   inkPageSize?: Size;
+  /**
+   * Ink that can only be read with NOTE in front (a document's last page, R80): added to the note
+   * once it is open. Returns elements in the note page's px; the caller of the callback recycles them.
+   */
+  lateInk?: () => Promise<Element[]>;
 }
 
 /**
@@ -107,6 +113,10 @@ export async function deliverToNote(label: string, d: Delivery, settings: Settin
       }),
     );
     t.mark('note');
+    if (d.lateInk && lastNote) {
+      await addLateInk(lastNote, d, settings);
+      t.mark('late ink');
+    }
     if (app === 'other' && settings.afterSnap === 'stay' && d.front.taskId >= 0) {
       await Native.moveTaskToFront(d.front.taskId);
       t.mark('back');
@@ -308,6 +318,49 @@ async function addLinkUnderPicture(notePath: string, page: number, doc: DocPage)
   } catch (e) {
     logError('add the link under the pasted picture', e);
     return false;
+  }
+}
+
+/**
+ * A document's last page: its ink can only be read with NOTE in front (R80). Open the new note (it is
+ * already open with "Open the snap"), read the ink, write it into the snap's page and make NOTE reload
+ * it; for "Stay here", go back to the page afterwards. In the Snaps inbox the snap is the last page
+ * (snaps are always appended).
+ */
+async function addLateInk(notePath: string, d: Delivery, settings: Settings): Promise<void> {
+  if (!d.lateInk) {
+    return;
+  }
+  const stay = settings.afterSnap === 'stay';
+  const inInbox = samePath(notePath, inboxPath(settings));
+  const page = inInbox ? Math.max(0, (await Sn.noteTotalPages(notePath).catch(() => 1)) - 1) : 0;
+  if (stay) {
+    await Sn.openFile(notePath, page);
+  }
+  await waitUntilCurrent(notePath);
+  const ink = await d.lateInk().catch(e => {
+    logError('read the last page\'s handwriting in Notes (snapping without it)', e);
+    return [] as Element[];
+  });
+  try {
+    if (ink.length) {
+      for (const e of ink) {
+        e.pageNum = page;
+      }
+      await Sn.saveOpenNote().catch(e => logError('save before adding ink', e));
+      await Sn.insertElements(notePath, page, ink);
+    }
+    log(`late ink: ${ink.length} strokes into ${baseName(notePath)} page ${page + 1}`);
+  } catch (e) {
+    logError('add the last page\'s handwriting', e);
+    toast('Snapped, but your handwriting could not be copied.', true);
+  } finally {
+    Sn.recycle(ink);
+  }
+  await ensureStillCurrent(notePath);
+  await reloadAndShow(stay || !inInbox ? null : page);
+  if (stay && d.doc) {
+    await Sn.openFile(d.doc.docPath, d.doc.page);
   }
 }
 

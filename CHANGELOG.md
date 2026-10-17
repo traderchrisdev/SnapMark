@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.2 (2026-10-17)
+
+- **Handwriting on the last page of a document is copied everywhere now.** 0.13.1 fixed it for Snap page; Snap region, margin mode and the Snaps inbox left it out. The document app refuses its last page to plugins, so SnapMark reads that page's ink through Notes: margin mode opens the snap first, and a region snap adds the ink right after Notes has the note open (with **Stay here**, you're taken back to the page afterwards).
+- For developers: `npm run devtest -- --install` now installs the build through Settings, switches SnapMark's settings for the margin-mode and inbox snaps and back, and checks 10 snaps.
+
 ## 0.13.1 (2026-10-17)
 
 Fixes for what a Nomad user reported on 0.13.0, plus the last page of a document.
