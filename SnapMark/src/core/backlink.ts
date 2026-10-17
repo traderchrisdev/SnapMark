@@ -104,3 +104,26 @@ export function captionUnder(text: string, picture: Rect, pageSize: Size): Capti
   const box = { left, top: layout.rect.top, right: left + width, bottom: layout.rect.bottom };
   return { text, fontSize, rect: boxUnder(box, picture, pageSize) };
 }
+
+/** Padding around the link when checking whether its spot on the page is blank. */
+const ZONE_PAD = 8;
+
+/** The same link in the top-right corner (journal pages usually keep a top margin), same clearances. */
+export function backlinkSpecTop(docPath: string, title: string, page: number, pageSize: Size): TextLinkSpec {
+  const spec = backlinkSpec(docPath, title, page, pageSize);
+  const width = spec.rect.right - spec.rect.left;
+  const height = spec.rect.bottom - spec.rect.top;
+  const right = pageSize.width - spec.rect.left;
+  const top = Math.max(MIN_BOTTOM_CLEARANCE, Math.round(pageSize.height * 0.05)) - height;
+  return { ...spec, rect: { left: right - width, top, right, bottom: top + height } };
+}
+
+/** The area a link needs blank: its rect plus a little padding. */
+export function linkZone(spec: TextLinkSpec): Rect {
+  return { left: spec.rect.left - ZONE_PAD, top: spec.rect.top - ZONE_PAD, right: spec.rect.right + ZONE_PAD, bottom: spec.rect.bottom + ZONE_PAD };
+}
+
+/** How much to shrink a page that has no blank spot for the link, so a strip above the bottom link stays free. */
+export function stripShrink(pageSize: Size, bottomSpec: TextLinkSpec): number {
+  return (bottomSpec.rect.top - ZONE_PAD) / pageSize.height;
+}

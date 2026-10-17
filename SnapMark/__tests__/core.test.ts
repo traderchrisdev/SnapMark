@@ -1,6 +1,6 @@
 import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
 import { fromEmr, toEmr } from '../src/core/emr';
-import { backlinkSpec, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder } from '../src/core/backlink';
+import { backlinkSpec, backlinkSpecTop, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder, linkZone, stripShrink } from '../src/core/backlink';
 import { fitInsetsDp } from '../src/core/fit';
 import {
   boxFrom,
@@ -34,8 +34,8 @@ import {
   snapNoteCandidates,
   tmpRenderPath,
 } from '../src/core/paths';
-import { underlineOffsetPx, underlinePoints } from '../src/core/highlights';
-import { marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
+import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
+import { fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
 import { describeAge, isFresh, newestFirst, parseScreenshotTime } from '../src/core/screenshots';
 import { decodeSettings, DEFAULT_SETTINGS, encodeSetting, entryKey, inboxPath } from '../src/core/settings';
 import { StepTimer } from '../src/core/timer';
@@ -479,5 +479,49 @@ describe('EMR coordinates (sn-plugin-lib 0.1.65)', () => {
   });
   it('refuses a page size it has no digitizer range for', () => {
     expect(() => toEmr({ x: 0, y: 0 }, { width: 1000, height: 1000 })).toThrow();
+  });
+});
+
+describe('Nomad feedback (R79)', () => {
+  const nomad = { width: 1404, height: 1872 };
+  const manta = { width: 1920, height: 2560 };
+  it('keeps the Nomad link where 0.13.0 put it (LINKRECT 120,1725,544,37 in the user\'s note)', () => {
+    const s = backlinkSpec('/d/1-s2.0-S2772529423009955-main.pdf', '1-s2.0-S2772529423009955-main', 4, nomad);
+    expect(s.rect).toEqual({ left: 120, top: 1725, right: 664, bottom: 1762 });
+  });
+  it('mirrors the link into the top-right corner with the same clearances', () => {
+    const b = backlinkSpec('/d/Book.pdf', 'Book', 0, manta);
+    const t = backlinkSpecTop('/d/Book.pdf', 'Book', 0, manta);
+    expect(t.rect.right).toBe(manta.width - b.rect.left);
+    expect(t.rect.right - t.rect.left).toBe(b.rect.right - b.rect.left);
+    expect(t.rect.bottom).toBe(128);
+    expect(linkZone(t).top).toBe(t.rect.top - 8);
+  });
+  it('shrinks a page with no blank spot just enough to free the link\'s strip', () => {
+    const b = backlinkSpec('/d/x.pdf', 'x', 0, nomad);
+    const shrink = stripShrink(nomad, b);
+    expect(shrink).toBeCloseTo(0.917, 3);
+    const strip = fitLayout(nomad, nomad, shrink);
+    expect(strip.rect.top).toBe(0);
+    expect(strip.rect.bottom).toBeLessThanOrEqual(b.rect.top - 8 + 1);
+    expect(strip.rect.left).toBe(Math.round((nomad.width - strip.imageSize.width) / 2));
+  });
+  it('letterboxes like the renderer: a landscape page centred in a portrait inbox page', () => {
+    const l = fitLayout({ width: 2560, height: 1920 }, manta);
+    expect(l.scale).toBeCloseTo(0.75, 6);
+    expect(l.rect).toEqual({ left: 0, top: 560, right: 1920, bottom: 2000 });
+    expect(isIdentity(fitLayout(manta, manta))).toBe(true);
+    expect(isIdentity(l)).toBe(false);
+  });
+  it('puts the underline just under the text line instead of a fixed offset', () => {
+    const marker = [{ x: 200, y: 260 }, { x: 600, y: 266 }, { x: 1280, y: 262 }];
+    expect(isLineHighlight(marker, 3800)).toBe(true);
+    expect(markerBand(marker)).toEqual({ left: 200, right: 1280, y: 263 });
+    const line = underlineUnderText(marker, 281, nomad.height);
+    expect(new Set(line.map(p => p.y))).toEqual(new Set([284]));
+    expect(line[0].x).toBe(200);
+    expect(line[line.length - 1].x).toBe(1280);
+    // The old offset for a 3800 marker was 25 px below the band centre: one Nomad text line further down.
+    expect(underlinePoints(marker, 3800, nomad.height)[0].y).toBe(288);
   });
 });

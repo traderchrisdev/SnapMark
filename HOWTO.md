@@ -54,8 +54,8 @@ In a PDF or EPUB, tap **Snap page**. In about 3–4 seconds a new note opens wit
 - **the page** as its background, ready to write on;
 - **your handwriting** from the document page, copied as real ink you can erase and move;
 - **text-selection highlights** you made in the book (setting: keep or leave out);
-- **marker highlights** turned into thin underlines (the Notes app would draw a marker solid over the text);
-- **a link at the bottom**, `↩ <Book>, p. N`, that opens the book on that page again.
+- **marker highlights** turned into thin underlines just under the highlighted line (the Notes app would draw a marker solid over the text);
+- **a link**, `↩ <Book>, p. N`, that opens the book on that page again. It goes at the bottom left; if text is there, at the top right; if both have text, the page is drawn slightly smaller so the link gets a free strip at the bottom.
 
 With **After a snap → Stay here**, the note is saved and you stay on the page. With **Margin mode**, the page is shrunk to 80/75/66% at the top-left, starting after the Notes toolbar (set **Notes toolbar** to the side yours is on; with **Full size** it starts in the corner), leaving room to write on the right and below.
 
@@ -184,7 +184,8 @@ If the button is still on screen after uninstalling, tap it once or restart the 
   - captures the screen **only when you tap it**;
   - checks which app is in front;
   - brings Notes, or the app you came from, back to the front;
-  - opens a note.
+  - opens a note;
+  - crops and measures page images (to place the cut-out, the underlines and the link) and writes the log file you ask for.
 - **Open source:** you can check all of this in [the source](SnapMark/android/app/src/main/java/com/snapmark/SnapMarkNativeModule.java).
 
 ## Troubleshooting
@@ -192,6 +193,7 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 | You see | What to do |
 |---|---|
 | "This plugin is not compatible with the current system version. Please update the system." and no SnapMark settings | Your firmware's plugin system rejects the plugin library version SnapMark was built with. Update to SnapMark 0.13.0 or later, which is built with library 0.1.65. If it still happens, please [open an issue](https://github.com/traderchrisdev/SnapMark/issues/new/choose) with your model, firmware version and the exact message. |
+| You need to report a problem but have no computer | SnapMark settings → **Problem report → Save a log file**. It saves a text file in `EXPORT/`; attach it to your report. It may contain note and document names, so check it first. |
 | The snap opens as two pages, one of them blank | Notes showed a half-way state; the note itself is complete. Reopen it from its folder. Fixed in 0.13.0. |
 | "Open the note to paste into, then snap again." | With **Into the note I'm working in**, open the note in Notes first, then snap. |
 | The floating button doesn't appear after turning it on | Open any note once. If it's still missing, restart the device. |
@@ -215,6 +217,7 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 - **Drawing the box** on e-ink lags slightly behind your finger.
 - **Pen taps on the floating button** over a page also write a dot there (see [where to keep it](#the-floating-capture-button)). In a PDF the safe spots aren't known yet.
 - **Margin mode** copies your strokes but not shapes from the page.
+- **Last page of a document:** Snap page copies its handwriting (read through Notes, because the document app refuses that page to plugins), but Snap region and margin mode leave it out.
 - **Annotate screenshot** can't tell where a native screenshot came from, so those notes are named `Screenshot - <time>`.
 
 ## Report a problem
@@ -225,7 +228,7 @@ Open an issue on GitHub. Please include:
 - what you tapped;
 - what happened.
 
-If you're comfortable with `adb`, a log helps a lot:
+No computer? SnapMark settings → **Problem report → Save a log file** puts a log in `EXPORT/` to attach. If you're comfortable with `adb`, a live log helps too:
 
 ```bash
 adb logcat -v time | grep -E 'SnapMark|AndroidRuntime'

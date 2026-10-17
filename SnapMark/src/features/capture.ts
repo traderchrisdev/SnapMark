@@ -8,7 +8,7 @@ import { PluginManager, type Element } from 'sn-plugin-lib';
 import { backlinkSpec, captionUnder, linkUnder, type Rect, type Size } from '../core/backlink';
 import { classifyApp, NOTE_PACKAGE } from '../core/apps';
 import { fitInsetsDp } from '../core/fit';
-import { baseName, captureSourceName, docTitle, hopNotePath, samePath, tmpDir, type CaptureSource } from '../core/paths';
+import { baseName, captureSourceName, docTitle, hopNotePath, nativeHopPath, samePath, tmpDir, type CaptureSource } from '../core/paths';
 import { insetsToPx, MARGIN_DP, pastePlacement, regionPlacement } from '../core/region';
 import { inboxPath, type Settings } from '../core/settings';
 import type { StepTimer } from '../core/timer';
@@ -330,7 +330,7 @@ async function bringNoteToFront(settings: Settings): Promise<void> {
   if ((await Native.bringNoteToFront()) && (await Native.waitForForeground(NOTE_PACKAGE, SWITCH_TIMEOUT_MS)) >= 0) {
     return;
   }
-  const known = [lastNote, inboxPath(settings), hopNotePath()].filter((p): p is string => p !== null);
+  const known = [lastNote, inboxPath(settings), nativeHopPath(), hopNotePath()].filter((p): p is string => p !== null);
   const opened = await Native.openFirstNote(known);
   if (opened && (await Native.waitForForeground(NOTE_PACKAGE, SWITCH_TIMEOUT_MS)) >= 0) {
     log(`capture: NOTE had no task; opened ${opened}`);
@@ -343,7 +343,7 @@ async function bringNoteToFront(settings: Settings): Promise<void> {
  * Retry while PluginHost still routes to the app we came from. Safe for snapScreenshot: its first
  * NOTE-only call (createNote, or the inbox page count) comes before it writes anything.
  */
-async function whenNoteReady<T>(task: () => Promise<T>): Promise<T> {
+export async function whenNoteReady<T>(task: () => Promise<T>): Promise<T> {
   const t0 = Date.now();
   for (;;) {
     try {

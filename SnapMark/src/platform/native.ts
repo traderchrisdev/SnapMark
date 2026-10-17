@@ -29,6 +29,22 @@ export interface FrontTask {
   taskId: number;
 }
 
+/** A highlighted line: the marker's x-extent and the row of its centre (page px). */
+export interface TextBand {
+  left: number;
+  right: number;
+  y: number;
+  /** How far below `y` to look for the line's bottom. */
+  maxDy: number;
+}
+
+export interface RenderReport {
+  /** Per band: the lowest row of the text line at its centre, or -1 if no text is there. */
+  lineBottoms: number[];
+  /** Per zone: dark pixels inside it. */
+  zoneInk: number[];
+}
+
 interface Spec {
   showBubble(): Promise<boolean>;
   hideBubble(): Promise<boolean>;
@@ -39,6 +55,8 @@ interface Spec {
   cutOut(srcPath: string, outPath: string, crop: Rect): Promise<Size>;
   contentBottom(pagePath: string, templatePath: string | null): Promise<number>;
   whitePng(outPath: string, width: number, height: number): Promise<boolean>;
+  inspectRender(path: string, bands: TextBand[], zones: Rect[]): Promise<RenderReport>;
+  writeText(path: string, text: string): Promise<boolean>;
   releasePenLock(): Promise<boolean>;
   foreground(): Promise<FrontTask>;
   bringNoteToFront(): Promise<boolean>;
@@ -83,6 +101,10 @@ export const Native = {
   /** Lowest row of a page render with content (what differs from `templatePath`, or isn't white), -1 if none. */
   contentBottom: (pagePath: string, templatePath: string | null) => call('contentBottom', m => m.contentBottom(pagePath, templatePath)),
   whitePng: (outPath: string, width: number, height: number) => call('whitePng', m => m.whitePng(outPath, width, height)),
+  /** Where highlighted text lines end and whether the link's spots are blank, from one decode of the render (R79). */
+  inspectRender: (path: string, bands: TextBand[], zones: Rect[]) => call('inspectRender', m => m.inspectRender(path, bands, zones)),
+  /** A UTF-8 text file (the log the user can share). */
+  writeText: (path: string, text: string) => call('writeText', m => m.writeText(path, text)),
   /** Let NOTE/DOC take pen input again after a plugin screen (false if this firmware can't). */
   releasePenLock: () => call('releasePenLock', m => m.releasePenLock()),
 

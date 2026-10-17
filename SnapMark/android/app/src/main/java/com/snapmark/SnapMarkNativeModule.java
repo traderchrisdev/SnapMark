@@ -40,6 +40,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
@@ -484,6 +485,102 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         int r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
         int l = (r * 299 + g * 587 + b * 114) / 1000;
         return (l * a + 255 * (255 - a)) / 255;
+    }
+
+    /**
+     * One look at a rendered page for the underlines and the backlink (R79). For each band
+     * {left,right,y,maxDy} (px): the lowest row of the text line at y, found by walking down from y
+     * through rows that have dark pixels between left and right (gaps of up to 2 rows allowed), or -1
+     * when there is no text within maxDy. For each zone {left,top,right,bottom}: how many dark pixels
+     * it has, so JS can tell a blank margin from text.
+     */
+    @ReactMethod
+    public void inspectRender(String path, ReadableArray bands, ReadableArray zones, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap bm = BitmapFactory.decodeFile(path);
+                if (bm == null) throw new IOException("cannot decode " + path);
+                int w = bm.getWidth(), h = bm.getHeight();
+                WritableArray bottoms = Arguments.createArray();
+                for (int i = 0; i < bands.size(); i++) {
+                    ReadableMap b = bands.getMap(i);
+                    int l = Math.max(0, b.getInt("left")), r = Math.min(w - 1, b.getInt("right"));
+                    int y = Math.min(h - 1, Math.max(0, b.getInt("y"))), maxDy = b.getInt("maxDy");
+                    bottoms.pushInt(l < r ? textLineBottom(bm, l, r, y, maxDy) : -1);
+                }
+                WritableArray ink = Arguments.createArray();
+                for (int i = 0; i < zones.size(); i++) {
+                    ReadableMap z = zones.getMap(i);
+                    int l = Math.max(0, z.getInt("left")), t = Math.max(0, z.getInt("top"));
+                    int r = Math.min(w, z.getInt("right")), bt = Math.min(h, z.getInt("bottom"));
+                    int count = 0;
+                    if (l < r && t < bt) {
+                        int[] row = new int[r - l];
+                        for (int yy = t; yy < bt; yy++) {
+                            bm.getPixels(row, 0, r - l, l, yy, r - l, 1);
+                            for (int c : row) if (luma(c) < DARK) count++;
+                        }
+                    }
+                    ink.pushInt(count);
+                }
+                bm.recycle();
+                WritableMap m = Arguments.createMap();
+                m.putArray("lineBottoms", bottoms);
+                m.putArray("zoneInk", ink);
+                promise.resolve(m);
+            } catch (Throwable e) {
+                Log.e(TAG, "inspectRender failed", e);
+                promise.reject("E_INSPECT", e.toString(), e);
+            }
+        }).start();
+    }
+
+    private static final int DARK = 128;
+    /** Rows of a text line may be separated by a blank row or two (an "i" dot, a descender tail). */
+    private static final int LINE_GAP = 3;
+    /** Rows above the band centre to look at when the centre itself is blank. */
+    private static final int LOOK_UP = 8;
+
+    private static boolean rowHasText(Bitmap bm, int[] row, int l, int r, int y) {
+        bm.getPixels(row, 0, r - l + 1, l, y, r - l + 1, 1);
+        int dark = 0;
+        for (int c : row) if (luma(c) < DARK && ++dark >= 2) return true;
+        return false;
+    }
+
+    private static int textLineBottom(Bitmap bm, int l, int r, int y, int maxDy) {
+        int h = bm.getHeight();
+        int[] row = new int[r - l + 1];
+        // Find the line: at the centre, else the nearest text row just above or below it.
+        int start = -1;
+        for (int d = 0; d <= LOOK_UP && start < 0; d++) {
+            if (y + d < h && rowHasText(bm, row, l, r, y + d)) start = y + d;
+            else if (d > 0 && y - d >= 0 && rowHasText(bm, row, l, r, y - d)) start = y - d;
+        }
+        if (start < 0) return -1;
+        int bottom = start, blank = 0;
+        for (int yy = start + 1; yy < h && yy <= y + maxDy; yy++) {
+            if (rowHasText(bm, row, l, r, yy)) { bottom = yy; blank = 0; }
+            else if (++blank >= LINE_GAP) break;
+        }
+        return bottom;
+    }
+
+    /** Writes a UTF-8 text file (the log the user can share). Overwrites. */
+    @ReactMethod
+    public void writeText(String path, String text, Promise promise) {
+        try {
+            File f = new File(path);
+            File parent = f.getParentFile();
+            if (parent != null && !parent.exists()) parent.mkdirs();
+            try (FileOutputStream out = new FileOutputStream(f)) {
+                out.write(text.getBytes(StandardCharsets.UTF_8));
+            }
+            promise.resolve(true);
+        } catch (Throwable e) {
+            Log.e(TAG, "writeText failed", e);
+            promise.reject("E_WRITE", e.toString(), e);
+        }
     }
 
     /** A white image of the given size (the background of a page added for a paste). */

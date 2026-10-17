@@ -1,6 +1,6 @@
 // Blank-note pool in the plugin's private dir (see core/paths poolBlankPath for why).
 
-import { parentDir, poolBlankPath } from '../core/paths';
+import { nativeHopPath, parentDir, poolBlankPath } from '../core/paths';
 import { logError } from '../platform/log';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
@@ -16,6 +16,14 @@ export async function pooledBlank(pluginDir: string, isPortrait: boolean): Promi
 
 /** NOTE must be in front (createNote is refused in DOC). Never throws: a missing blank only means a slower next snap. */
 export async function refillPool(pluginDir: string): Promise<void> {
+  try {
+    if (!(await fs.exists(nativeHopPath()))) {
+      await fs.makeDirs(parentDir(nativeHopPath()));
+      await Sn.createNote(nativeHopPath(), BLANK_TEMPLATE, true);
+    }
+  } catch (e) {
+    logError('make the helper note', e);
+  }
   for (const isPortrait of [true, false]) {
     const path = poolBlankPath(pluginDir, isPortrait);
     try {

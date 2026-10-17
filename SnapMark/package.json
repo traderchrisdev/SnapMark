@@ -1,6 +1,6 @@
 {
   "name": "SnapMark",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -10,7 +10,8 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "build:plugin": "rm -rf build && ./buildPlugin.sh",
-    "check": "tsc --noEmit && eslint src __tests__ App.tsx index.js && jest"
+    "check": "tsc --noEmit && eslint src __tests__ App.tsx index.js && jest",
+    "devtest": "devtest/.venv/bin/python devtest/device_test.py run"
   },
   "dependencies": {
     "react": "19.0.0",

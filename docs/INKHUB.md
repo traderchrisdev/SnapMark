@@ -21,7 +21,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.13.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.13.1. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).
@@ -30,7 +30,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > - It never deletes or overwrites user files. Every delete is restricted in code to its own private plugin folder (`src/sdk/fs.ts`, `assertPrivate`) and only removes its temporary images.
 > - There is no `INTERNET` permission and no network code anywhere, in JS or native. (The Android package declares `SYSTEM_ALERT_WINDOW`, for the floating button, and the storage permissions that Supernote's own plugin library adds to every plugin.)
 >
-> 0.13.0 changes the plugin library version (0.2.3 → 0.1.65, so older firmware accepts it), the JavaScript, and drops the `INTERNET` permission the React Native template had declared; the native module is unchanged from 0.12.0.
+> 0.13.x is built with plugin library 0.1.65 so older firmware accepts it, and drops the `INTERNET` permission the React Native template had declared. 0.13.1 adds the image measurement and log-file helpers below.
 >
 > **What the native code does** (`SnapMarkNativeModule.java`; items 1–4 are used only by the optional floating button, which is off by default):
 > 1. **The button:** shows a small `TYPE_APPLICATION_OVERLAY` button, the same technique SuperDashboard uses.
@@ -38,8 +38,9 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > 3. **Which app is in front:** `getRunningTasks`, with `dumpsys activity activities` as a fallback, so it can name the note after the app and know whether Notes must be brought forward.
 > 4. **Switching apps:** `moveTaskToFront` to bring Notes forward (or back to the user's app for "Stay here"), plus an intent that opens a note in Notes.
 > 5. **The pen after the selection screen:** `PluginApp.showPluginView(0)` via reflection, after the region-selection screen closes, so NOTE and DOC re-enable pen input. Without it the pen could stay disabled.
-> 6. **Image helpers:** cropping the box the user drew, finding where a note page's content ends (a pixel scan of a page render, for pasting below it), and writing a blank white page image. These are plain bitmap operations on files in the plugin's folder.
-> 7. **Cleanup:** removes its own leftover button views after a plugin update (`WindowManagerGlobal`, matched by its own view tag).
+> 6. **Image helpers:** cropping the box the user drew, finding where a note page's content ends (a pixel scan of a page render, for pasting below it), measuring where a highlighted text line ends and whether the link's spot is blank, and writing a blank white page image. These are plain bitmap operations on files in the plugin's folder.
+> 7. **Log file:** "Save a log file" in the settings writes SnapMark's own recent log lines to a text file, which is then copied to `EXPORT/` through the plugin SDK. Only when the user taps it.
+> 8. **Cleanup:** removes its own leftover button views after a plugin update (`WindowManagerGlobal`, matched by its own view tag).
 >
 > No other system APIs are used, and nothing runs in the background except the button waiting for a tap.
 >

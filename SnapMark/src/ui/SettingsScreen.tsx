@@ -8,6 +8,8 @@ import { MARGIN_CHOICES } from '../core/margin';
 import type { ScreenshotFit } from '../core/fit';
 import { DEFAULT_SETTINGS, FRESHNESS_CHOICES, type Settings } from '../core/settings';
 import { setBubble } from '../features/bubble';
+import { saveLog } from '../features/saveLog';
+import { baseName } from '../core/paths';
 import { logError } from '../platform/log';
 import { Native } from '../platform/native';
 import { loadSettings, saveSetting } from '../platform/settingsStore';
@@ -207,6 +209,26 @@ export function SettingsScreen() {
       <Section label="Notes toolbar" hint="Screenshot notes are shrunk so the toolbar and the page bar don't cover them.">
         <Choice options={fitOptions} value={settings.screenshotFit} onChange={v => update('screenshotFit', v)} />
       </Section>
+
+      {Native.available ? (
+        <Section
+          label="Problem report"
+          hint="Saves SnapMark's recent log, your device type and these settings to EXPORT/ as a text file, to attach to a bug report. It may contain note and document names."
+        >
+          <Button
+            label="Save a log file"
+            onPress={() =>
+              saveLog(settings).then(
+                path => setStatus(`Saved EXPORT/${baseName(path)}`),
+                e => {
+                  logError('save log', e);
+                  setStatus(`Not saved: ${describeError(e)}`);
+                },
+              )
+            }
+          />
+        </Section>
+      ) : null}
 
       <Text style={styles.status}>{status}</Text>
     </ScrollView>

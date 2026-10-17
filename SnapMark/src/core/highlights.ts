@@ -16,6 +16,10 @@ export const UNDERLINE_PRESSURE = 1500;
 const GAP_PX = 6;
 /** Spacing of points on a straightened underline. */
 const STEP_PX = 24;
+/** Below the lowest row of the text line (its descenders), when the render was consulted (R79). */
+export const UNDER_TEXT_GAP_PX = 3;
+/** How far below a marker's centre the text line's bottom may be: a line is rarely taller than this. */
+export const LINE_BOTTOM_SEARCH_PX = 60;
 
 export interface Point {
   x: number;
@@ -27,9 +31,43 @@ export function underlineOffsetPx(markerThickness: number): number {
   return Math.round(markerThickness / STROKE_UNITS_PER_PX / 2) + GAP_PX;
 }
 
+/** A marker's x-extent and centre row: where to look in the render for the text line it covers. */
+export function markerBand(markerPoints: ReadonlyArray<Point>): { left: number; right: number; y: number } {
+  let [left, right, sumY] = [Infinity, -Infinity, 0];
+  for (const p of markerPoints) {
+    left = Math.min(left, p.x);
+    right = Math.max(right, p.x);
+    sumY += p.y;
+  }
+  return { left: Math.round(left), right: Math.round(right), y: Math.round(sumY / markerPoints.length) };
+}
+
+/** True when the marker stays within one band height vertically: a single highlighted line. */
+export function isLineHighlight(markerPoints: ReadonlyArray<Point>, markerThickness: number): boolean {
+  let [top, bottom] = [Infinity, -Infinity];
+  for (const p of markerPoints) {
+    top = Math.min(top, p.y);
+    bottom = Math.max(bottom, p.y);
+  }
+  return markerPoints.length >= 2 && bottom - top <= markerThickness / STROKE_UNITS_PER_PX;
+}
+
 /**
- * A marker that stays within one band height vertically is a line highlight: underline it with a
- * straight line at its average height (a hand-drawn path wobbles ±10 px). Anything else keeps its shape.
+ * A straight underline across the marker's x-extent, just under `lineBottom` (the lowest row of the
+ * highlighted text line in the page render). Device-independent: the marker's thickness and the text
+ * size no longer matter (on a Nomad the thickness-based offset landed one line too low, R79).
+ */
+export function underlineUnderText(markerPoints: ReadonlyArray<Point>, lineBottom: number, pageHeight: number): Point[] {
+  const { left, right } = markerBand(markerPoints);
+  const y = Math.min(pageHeight - 1, lineBottom + UNDER_TEXT_GAP_PX);
+  const steps = Math.max(1, Math.ceil((right - left) / STEP_PX));
+  return Array.from({ length: steps + 1 }, (_, i) => ({ x: Math.round(left + ((right - left) * i) / steps), y }));
+}
+
+/**
+ * Without a render to consult: a marker that stays within one band height vertically is a line
+ * highlight: underline it with a straight line at its average height (a hand-drawn path wobbles
+ * ±10 px). Anything else keeps its shape.
  */
 export function underlinePoints(markerPoints: ReadonlyArray<Point>, markerThickness: number, pageHeight: number): Point[] {
   const dy = underlineOffsetPx(markerThickness);

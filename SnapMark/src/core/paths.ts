@@ -22,6 +22,14 @@ export function hopNotePath(): string {
   return `${APP_DATA_DIR}/hop.note`;
 }
 
+/**
+ * The same job, but a note made on this device by createNote (R79: the bundled one was made on a
+ * Manta, and a Nomad shows another device's note with its toolbar on top). Preferred once it exists.
+ */
+export function nativeHopPath(): string {
+  return `${APP_DATA_DIR}/blank.note`;
+}
+
 /** The snaps root for a folder setting such as "Snaps" or "Reading/Snaps" (always under Note/). */
 export function snapsDirFor(folder: string): string {
   return `${NOTE_ROOT}/${folder}`;

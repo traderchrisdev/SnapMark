@@ -9,21 +9,27 @@
 // helper note brings NOTE forward instead, and the pool is filled for next time.
 
 import type { Element } from 'sn-plugin-lib';
-import { backlinkSpec, type Size } from '../core/backlink';
+import { backlinkSpec, backlinkSpecTop, linkZone, stripShrink, type Size, type TextLinkSpec } from '../core/backlink';
 import {
   COLOR_DARK_GRAY,
+  isLineHighlight,
+  LINE_BOTTOM_SEARCH_PX,
+  markerBand,
   PEN_MARKER,
   PEN_TECHNICAL,
   UNDERLINE_PRESSURE,
   UNDERLINE_THICKNESS,
   underlinePoints,
+  underlineUnderText,
   type HighlightStyle,
+  type Point,
 } from '../core/highlights';
 import {
   docTitle,
   formatStamp,
   hopNotePath,
   isDocumentPath,
+  nativeHopPath,
   parentDir,
   snapNoteCandidates,
   tmpDir,
@@ -31,12 +37,13 @@ import {
 } from '../core/paths';
 import { PixelRatio } from 'react-native';
 import { fitInsetsDp } from '../core/fit';
-import { marginLayout, scalePoints, scaleThickness, type MarginLayout } from '../core/margin';
+import { fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type MarginLayout } from '../core/margin';
 import { insetsToPx } from '../core/region';
 import { collects, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
+import { Native, type TextBand } from '../platform/native';
 import { screenSizePx } from '../platform/screen';
 import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
@@ -55,9 +62,26 @@ interface Snap {
   docPath: string;
   title: string;
   page: number;
+  /** The document page's size: the frame the handwriting is in. */
   pageSize: Size;
   render: string;
-  handwriting: Element[];
+  /** Ink and underlines in document-page px; null: read them once NOTE is in front (R80). */
+  handwriting: Element[] | null;
+  highlightStyle: HighlightStyle;
+  /** Document page px -> render px (identity unless letterboxed into the inbox or shrunk for the link). */
+  inkLayout: MarginLayout;
+  /** Where the backlink goes, in render px (bottom-left, or top-right when the bottom holds text, R79). */
+  link: TextLinkSpec;
+  renderSize: Size;
+}
+
+/** Dark pixels in a link's spot before it counts as text rather than a blank margin. */
+const ZONE_INK_LIMIT = 40;
+
+/** Highlights read from the page, before they become underlines. */
+export interface Handwriting {
+  strokes: Element[];
+  markers: Element[];
 }
 
 export async function snapPage(settings: Settings): Promise<void> {
@@ -69,7 +93,8 @@ export async function snapPage(settings: Settings): Promise<void> {
     throw new UserFacingError('Open a document to snap a page.');
   }
   // DOC reports the page as displayed, which matches the note page on the same device (R3, R16).
-  const pageSize = await documentPageSize(docPath, page);
+  const lastPage = await isLastPage(page);
+  const pageSize = await documentPageSize(docPath, page, lastPage);
   const inbox = inboxPath(settings);
   const appendToInbox = collects(settings) && (await fs.exists(inbox));
   const margin =
@@ -84,13 +109,58 @@ export async function snapPage(settings: Settings): Promise<void> {
   const tmp = tmpDir(pluginDir);
   await fs.makeDirs(tmp);
   await clearDir(tmp);
-  const render = tmpRenderPath(pluginDir, new Date());
+  let render = tmpRenderPath(pluginDir, new Date());
   await Sn.renderDocPage(page, render, renderSize, settings.keepHighlights);
   t.mark('render');
 
-  const handwriting = settings.includeHandwriting ? await readHandwriting(docPath, page, pageSize, settings.highlightStyle) : [];
+  // Document page px -> render px.
+  let inkLayout: MarginLayout = appendToInbox
+    ? fitLayout(pageSize, renderSize)
+    : margin
+      ? { scale: margin.scale, imageSize: margin.imageSize, rect: { left: 0, top: 0, right: margin.imageSize.width, bottom: margin.imageSize.height } }
+      : fitLayout(pageSize, pageSize);
+  let link = backlinkSpec(docPath, docTitle(docPath), page, renderSize);
+  // Where the link goes: bottom-left if blank, else top-right if blank, else a strip under the page (R79).
+  const topLink = backlinkSpecTop(docPath, docTitle(docPath), page, renderSize);
+  const zones = margin ? [] : [linkZone(link), linkZone(topLink)];
+  const report = Native.available && zones.length ? await Native.inspectRender(render, [], zones) : null;
+  if (report) {
+    const [inkBottom, inkTop] = report.zoneInk;
+    if (inkBottom > ZONE_INK_LIMIT && inkTop <= ZONE_INK_LIMIT) {
+      link = topLink;
+    } else if (inkBottom > ZONE_INK_LIMIT) {
+      const shrink = stripShrink(renderSize, link);
+      const strip = fitLayout(renderSize, renderSize, shrink);
+      const shrunk = `${tmp}/render-strip.png`;
+      await Native.cropInto(render, shrunk, { left: 0, top: 0, right: renderSize.width, bottom: renderSize.height }, strip.rect);
+      await fs.remove(render).catch(() => undefined);
+      render = shrunk;
+      inkLayout = composeLayouts(inkLayout, strip);
+    }
+    const where = link === topLink ? 'top-right' : inkBottom > ZONE_INK_LIMIT ? `bottom, page shrunk to ${inkLayout.scale.toFixed(3)}` : 'bottom';
+    log(`snap page: link ${where} (dark px at bottom ${inkBottom}, top ${inkTop})`);
+  }
+  // The ink, read now in DOC; on a document's last page DOC refuses (R80), so NOTE reads it later.
+  let handwriting: Element[] | null = [];
+  if (settings.includeHandwriting) {
+    if (lastPage) {
+      handwriting = null;
+      log('snap page: last page of the document; reading the ink once Notes is in front (R80)');
+    } else {
+      try {
+        handwriting = await buildInk(docPath, page, pageSize, render, inkLayout, settings.highlightStyle);
+      } catch (e) {
+        if (errorCode(e) === CODE_PAGE_NOT_FOUND) {
+          handwriting = null;
+          log('snap page: DOC refused the ink; reading it once Notes is in front (R80)');
+        } else {
+          logError('read handwriting (snapping without it)', e);
+        }
+      }
+    }
+  }
   try {
-    t.mark(`handwriting(${handwriting.length})`);
+    t.mark(`handwriting(${handwriting === null ? 'later' : handwriting.length})`);
     const title = docTitle(docPath);
     const dir = collects(settings) ? snapsDir(settings) : `${snapsDir(settings)}/${title}`;
     await assertUnlocked(dir);
@@ -101,7 +171,7 @@ export async function snapPage(settings: Settings): Promise<void> {
     const blank = appendToInbox || margin ? null : await pooledBlank(pluginDir, isPortrait);
     t.mark('paths');
 
-    const snap: Snap = { notePath, docPath, title, page, pageSize, render, handwriting };
+    const snap: Snap = { notePath, docPath, title, page, pageSize, render, handwriting, highlightStyle: settings.highlightStyle, inkLayout, link, renderSize };
     const stay = settings.afterSnap === 'stay';
     let linked: boolean;
     let where: string;
@@ -136,7 +206,9 @@ export async function snapPage(settings: Settings): Promise<void> {
       }
     }
   } finally {
-    Sn.recycle(handwriting);
+    if (handwriting) {
+      Sn.recycle(handwriting);
+    }
     await fs.remove(render).catch(() => undefined); // embedded in the note by now (R21)
   }
 }
@@ -145,7 +217,11 @@ export async function snapPage(settings: Settings): Promise<void> {
  * getPageSize for a document page: always the screen size (R3). PluginHost can refuse a page DOC is
  * showing (1207, R75); then the screen size is the same answer.
  */
-export async function documentPageSize(docPath: string, page: number): Promise<Size> {
+export async function documentPageSize(docPath: string, page: number, lastPage = false): Promise<Size> {
+  if (lastPage) {
+    // DOC refuses the last page (R75, R80) and may show "Note Not Found"; the answer is the screen size.
+    return screenSizePx();
+  }
   try {
     return await Sn.pageSize(docPath, page);
   } catch (e) {
@@ -196,7 +272,10 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   const noteSize = await Sn.pageSize(snap.notePath, 0);
   const sameFrame = noteSize.width === snap.pageSize.width && noteSize.height === snap.pageSize.height;
   const picture = await Sn.newPictureElement(snap.render, layout.rect, 0);
-  const strokes = sameFrame ? await scaledStrokes(snap.handwriting, layout, noteSize) : [];
+  if (snap.handwriting === null) {
+    toast('Margin mode can\'t copy handwriting from the last page of a document yet.', true);
+  }
+  const strokes = sameFrame && snap.handwriting ? await scaledStrokes(snap.handwriting, layout, snap.pageSize, noteSize) : [];
   const link = await Sn.newLinkElement(backlinkSpec(snap.docPath, snap.title, snap.page, noteSize), 0);
   const elements = [picture, ...strokes, link];
   t.mark(`elements(${strokes.length} strokes)`);
@@ -219,7 +298,7 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
 }
 
 /** New strokes: each doc stroke (or marker underline) scaled and moved into the margin layout. */
-async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: MarginLayout, pageSize: Size): Promise<Element[]> {
+async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: MarginLayout, fromSize: Size, toSize: Size): Promise<Element[]> {
   const out: Element[] = [];
   let skipped = 0;
   for (const e of handwriting) {
@@ -229,12 +308,12 @@ async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: Margin
       skipped++;
       continue;
     }
-    const points = await Sn.strokePoints(stroke, count, pageSize);
+    const points = await Sn.strokePoints(stroke, count, fromSize);
     const pressures = await stroke.pressures.getRange(0, count).catch(() => null);
     out.push(
       await Sn.newStroke({
         page: 0,
-        pageSize,
+        pageSize: toSize,
         penType: stroke.penType,
         penColor: stroke.penColor,
         thickness: scaleThickness(e.thickness, layout),
@@ -243,8 +322,8 @@ async function scaledStrokes(handwriting: ReadonlyArray<Element>, layout: Margin
       }),
     );
   }
-  if (skipped) {
-    log(`margin mode: ${skipped} non-stroke element(s) (e.g. shapes) not copied`);
+  if (skipped && !isIdentity(layout)) {
+    log(`${skipped} non-stroke element(s) (e.g. shapes) not copied: the page was moved or scaled`);
   }
   return out;
 }
@@ -292,89 +371,179 @@ async function viaHelperNote(snap: Snap, pluginDir: string, isPortrait: boolean,
 }
 
 /**
- * Strokes and shapes on the document page, retargeted to page 0 / main layer of the snap.
- * Marker strokes become underlines (or are dropped): copied as markers they'd hide the text (R41).
+ * The page's handwriting (strokes and shapes) and, when highlights are wanted, its marker strokes,
+ * still raw: see markerInfos/underlinesFrom. The caller recycles both lists.
  */
-export async function readHandwriting(docPath: string, page: number, pageSize: Size, highlights: HighlightStyle): Promise<Element[]> {
-  const all = await Sn.pageElements(docPath, page).catch(e => {
-    logError('read handwriting (snapping without it)', e);
-    return [] as Element[];
-  });
+export async function readHandwriting(docPath: string, page: number, highlights: HighlightStyle): Promise<Handwriting> {
+  const all = await Sn.pageElements(docPath, page);
   const isMarker = (e: Element) => e.type === TYPE_STROKE && e.stroke?.penType === PEN_MARKER;
-  const keep = all.filter(e => (e.type === TYPE_STROKE || e.type === TYPE_GEOMETRY) && !isMarker(e));
-  for (const e of keep) {
+  const strokes = all.filter(e => (e.type === TYPE_STROKE || e.type === TYPE_GEOMETRY) && !isMarker(e));
+  const markers = highlights === 'underline' ? all.filter(isMarker) : [];
+  for (const e of strokes) {
     e.pageNum = 0;
     e.layerNum = 0;
   }
-  const underlines: Element[] = [];
-  if (highlights === 'underline') {
-    for (const marker of all.filter(isMarker)) {
-      const line = await markerToUnderline(marker, pageSize).catch(e => {
-        logError('marker -> underline (skipped)', e);
-        return null;
-      });
-      if (line) {
-        underlines.push(line);
-      }
+  Sn.recycle(all.filter(e => !strokes.includes(e) && !markers.includes(e)));
+  return { strokes, markers };
+}
+
+/**
+ * The page's ink as elements in document-page px: strokes and shapes as they are, each marker as an
+ * underline just under the text line it covers in `render` (whose px map from the page by `layout`).
+ * Throws what getElements throws (1207 on a document's last page in DOC, R80).
+ */
+async function buildInk(docPath: string, page: number, pageSize: Size, render: string, layout: MarginLayout, style: HighlightStyle): Promise<Element[]> {
+  const read = await readHandwriting(docPath, page, style);
+  try {
+    const infos = await markerInfos(read.markers, pageSize);
+    const bands: TextBand[] = infos.map(i => {
+      const [l, r] = scalePoints([{ x: i.band.left, y: i.band.y }, { x: i.band.right, y: i.band.y }], layout);
+      return { left: l.x, right: r.x, y: l.y, maxDy: Math.round(LINE_BOTTOM_SEARCH_PX * layout.scale) };
+    });
+    const report = Native.available && bands.length ? await Native.inspectRender(render, bands, []).catch(() => null) : null;
+    const bottoms = report ? report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - layout.rect.top) / layout.scale))) : null;
+    const underlines = await underlinesFrom(infos, pageSize, bottoms);
+    if (infos.length) {
+      log(`snap page: ${infos.length} marker(s) -> ${underlines.length} underline(s); line bottoms ${JSON.stringify(bottoms)}; thickness ${infos.map(i => i.thickness).join(',')}`);
+    }
+    return [...underlines, ...read.strokes];
+  } finally {
+    Sn.recycle(read.markers);
+  }
+}
+
+/** True when `page` (0-based) is the open document's last page, which DOC refuses some calls for (R80). */
+export async function isLastPage(page: number): Promise<boolean> {
+  const total = await Sn.docTotalPages().catch(() => -1);
+  return total > 0 && page === total - 1;
+}
+
+/** A marker's points in page px, its thickness and its band (x-extent and centre row). */
+export interface MarkerInfo {
+  points: Point[];
+  thickness: number;
+  band: { left: number; right: number; y: number };
+}
+
+export async function markerInfos(markers: ReadonlyArray<Element>, pageSize: Size): Promise<MarkerInfo[]> {
+  const out: MarkerInfo[] = [];
+  for (const marker of markers) {
+    const stroke = marker.stroke;
+    const count = stroke ? await stroke.points.size() : 0;
+    if (!stroke || count < 2) {
+      continue;
+    }
+    const points = await Sn.strokePoints(stroke, count, pageSize);
+    out.push({ points, thickness: marker.thickness, band: markerBand(points) });
+  }
+  return out;
+}
+
+/**
+ * Each marker as a thin underline (new strokes in page px; the caller recycles them). With
+ * `lineBottoms` (from the render, Native.inspectRender) a single-line highlight is underlined just
+ * under its text; otherwise, or when the render had no text there, the thickness-based offset is used.
+ */
+export async function underlinesFrom(infos: ReadonlyArray<MarkerInfo>, pageSize: Size, lineBottoms: ReadonlyArray<number> | null): Promise<Element[]> {
+  const out: Element[] = [];
+  for (const [i, info] of infos.entries()) {
+    const bottom = lineBottoms?.[i] ?? -1;
+    const points =
+      bottom >= 0 && isLineHighlight(info.points, info.thickness)
+        ? underlineUnderText(info.points, bottom, pageSize.height)
+        : underlinePoints(info.points, info.thickness, pageSize.height);
+    try {
+      out.push(
+        await Sn.newStroke({
+          page: 0,
+          pageSize,
+          penType: PEN_TECHNICAL,
+          penColor: COLOR_DARK_GRAY,
+          thickness: UNDERLINE_THICKNESS,
+          points,
+          pressure: UNDERLINE_PRESSURE,
+        }),
+      );
+    } catch (e) {
+      logError('marker -> underline (skipped)', e);
     }
   }
-  Sn.recycle(all.filter(e => !keep.includes(e)));
-  return [...underlines, ...keep];
+  return out;
 }
 
-async function markerToUnderline(marker: Element, pageSize: Size): Promise<Element | null> {
-  const stroke = marker.stroke;
-  const count = stroke ? await stroke.points.size() : 0;
-  if (!stroke || count < 2) {
-    return null;
-  }
-  return Sn.newStroke({
-    page: 0,
-    pageSize,
-    penType: PEN_TECHNICAL,
-    penColor: COLOR_DARK_GRAY,
-    thickness: UNDERLINE_THICKNESS,
-    points: underlinePoints(await Sn.strokePoints(stroke, count, pageSize), marker.thickness, pageSize.height),
-    pressure: UNDERLINE_PRESSURE,
-  });
+/** inner first, then outer (both as page-px transforms). */
+export function composeLayouts(inner: MarginLayout, outer: MarginLayout): MarginLayout {
+  const scale = inner.scale * outer.scale;
+  const left = Math.round(outer.rect.left + inner.rect.left * outer.scale);
+  const top = Math.round(outer.rect.top + inner.rect.top * outer.scale);
+  const imageSize = { width: Math.round(inner.imageSize.width * outer.scale), height: Math.round(inner.imageSize.height * outer.scale) };
+  return { scale, imageSize, rect: { left, top, right: left + imageSize.width, bottom: top + imageSize.height } };
 }
 
-/** Onto page `notePage` of the snap. Returns false if the backlink could not be added (the snap is still usable). */
+
+/**
+ * Onto page `notePage` of the snap: the ink as new strokes placed where the render went (so it never
+ * depends on the frames matching, R79), shapes as they are when nothing moved, and the backlink.
+ * Returns false if the backlink could not be added (the snap is still usable).
+ */
 async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<boolean> {
-  const { notePath, docPath, title, page, pageSize: docPageSize, handwriting } = snap;
-  const noteSize = await Sn.pageSize(notePath, notePage);
-  // Element coordinates are page pixels; only copy them if both pages share the same frame.
-  const sameFrame = noteSize.width === docPageSize.width && noteSize.height === docPageSize.height;
-  if (handwriting.length && !sameFrame) {
-    log(`note page ${noteSize.width}x${noteSize.height} != doc page ${docPageSize.width}x${docPageSize.height}; handwriting not copied`);
+  const { notePath, renderSize } = snap;
+  let handwriting = snap.handwriting;
+  let late: Element[] = [];
+  if (handwriting === null) {
+    // NOTE is in front now and reads the document's ink itself, last page included (R80).
+    late = await buildInk(snap.docPath, snap.page, snap.pageSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
+      logError('read the last page\'s handwriting in Notes (snapping without it)', e);
+      return [] as Element[];
+    });
+    handwriting = late;
   }
-  for (const e of handwriting) {
+  const noteSize = await Sn.pageSize(notePath, notePage);
+  let layout = snap.inkLayout;
+  let link = snap.link;
+  if (noteSize.width !== renderSize.width || noteSize.height !== renderSize.height) {
+    // A template is drawn unscaled and centred on a page of another size (R38): follow it.
+    const dx = Math.round((noteSize.width - renderSize.width) / 2);
+    const dy = Math.round((noteSize.height - renderSize.height) / 2);
+    log(`note page ${noteSize.width}x${noteSize.height} != render ${renderSize.width}x${renderSize.height}; ink moved by ${dx},${dy}`);
+    layout = composeLayouts(layout, { scale: 1, imageSize: renderSize, rect: { left: dx, top: dy, right: dx + renderSize.width, bottom: dy + renderSize.height } });
+    link = backlinkSpec(snap.docPath, snap.title, snap.page, noteSize);
+  }
+  const strokes = await scaledStrokes(handwriting, layout, snap.pageSize, noteSize);
+  const shapes = isIdentity(layout) ? handwriting.filter(e => e.type === TYPE_GEOMETRY) : [];
+  for (const e of [...strokes, ...shapes]) {
     e.pageNum = notePage;
   }
-  const link = await Sn.newLinkElement(backlinkSpec(docPath, title, page, noteSize), notePage);
+  const linkEl = await Sn.newLinkElement(link, notePage);
   try {
-    const withHandwriting = sameFrame ? [...handwriting, link] : [link];
+    const all = [...strokes, ...shapes, linkEl];
     try {
-      await Sn.insertElements(notePath, notePage, withHandwriting);
+      await Sn.insertElements(notePath, notePage, all);
+      log(`snap page: inserted ${strokes.length} strokes, ${shapes.length} shapes and the link`);
       return true;
     } catch (e) {
-      if (withHandwriting.length === 1) {
+      if (all.length === 1) {
         throw e;
       }
-      logError('insert handwriting + link (retrying link only)', e);
-      await Sn.insertElements(notePath, notePage, [link]);
+      logError(`insert ${strokes.length} strokes + ${shapes.length} shapes + link (retrying link only)`, e);
+      await Sn.insertElements(notePath, notePage, [linkEl]);
+      toast('Snapped, but your handwriting could not be copied.', true);
       return true;
     }
   } catch (e) {
     logError('insert backlink', e);
     return false;
   } finally {
-    Sn.recycle([link]);
+    Sn.recycle([...strokes, linkEl, ...late]);
   }
 }
 
 /** The helper note is a copy of the bundled blank (it is never written to, so its shared FILE_ID is harmless). */
 async function ensureHopNote(pluginDir: string): Promise<string> {
+  // A blank made on this device by createNote, once one exists (the bundled one is a Manta's, R79).
+  if (await fs.exists(nativeHopPath())) {
+    return nativeHopPath();
+  }
   const hop = hopNotePath();
   if (!(await fs.exists(hop))) {
     await fs.makeDirs(parentDir(hop));

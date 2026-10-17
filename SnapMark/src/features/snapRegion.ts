@@ -10,7 +10,7 @@
 
 import type { Element } from 'sn-plugin-lib';
 import type { Rect, Size } from '../core/backlink';
-import { UNDERLINE_PRESSURE } from '../core/highlights';
+import { LINE_BOTTOM_SEARCH_PX, UNDERLINE_PRESSURE } from '../core/highlights';
 import { scaleThicknessBy } from '../core/margin';
 import { isDocumentPath, tmpDir } from '../core/paths';
 import { captureToPage, mapToRegion, mostlyInside, regionScale } from '../core/region';
@@ -25,7 +25,7 @@ import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import type { DocPage } from './annotateScreenshot';
 import { askForRegion, type RegionChoice } from './region';
-import { documentPageSize, readHandwriting, snapPage } from './snapPage';
+import { documentPageSize, isLastPage, markerInfos, readHandwriting, snapPage, underlinesFrom, type Handwriting } from './snapPage';
 
 /** Lets the plugin menu that held the button close before the screen is captured. */
 const MENU_CLOSE_MS = 300;
@@ -43,7 +43,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   if (!isDocumentPath(docPath)) {
     throw new UserFacingError('Open a document to snap a region.');
   }
-  const pageSize = await documentPageSize(docPath, page);
+  const pageSize = await documentPageSize(docPath, page, await isLastPage(page));
   const tmp = tmpDir(pluginDir);
   await fs.makeDirs(tmp);
   const stamp = Date.now();
@@ -77,11 +77,11 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     },
   );
   const reading = settings.includeHandwriting
-    ? readHandwriting(docPath, page, pageSize, settings.highlightStyle).catch(e => {
+    ? readHandwriting(docPath, page, settings.highlightStyle).catch(e => {
         logError('snap region: read ink (snapping without it)', e);
-        return [] as Element[];
+        return { strokes: [], markers: [] } as Handwriting;
       })
-    : Promise.resolve([] as Element[]);
+    : Promise.resolve({ strokes: [], markers: [] } as Handwriting);
 
   let choice: RegionChoice = null;
   let strokes: Element[] = [];
@@ -91,8 +91,28 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     t.mark('region');
     if (choice && choice !== 'whole') {
       const box = choice;
-      const [rendered, handwriting] = await Promise.all([rendering, reading]);
+      const [rendered, read] = await Promise.all([rendering, reading]);
       t.mark('render');
+      // Underlines go just under the highlighted text the render shows (R79); the render is in page px.
+      const infos = await markerInfos(read.markers, pageSize).catch(() => []);
+      Sn.recycle(read.markers);
+      const bottoms =
+        rendered && infos.length && Native.available
+          ? (
+              await Native.inspectRender(
+                render,
+                infos.map(i => ({ left: i.band.left, right: i.band.right, y: i.band.y, maxDy: LINE_BOTTOM_SEARCH_PX })),
+                [],
+              ).catch(e => {
+                logError('snap region: find the highlighted lines (thickness-based underlines)', e);
+                return null;
+              })
+            )?.lineBottoms ?? null
+          : null;
+      const handwriting = [...(await underlinesFrom(infos, pageSize, bottoms)), ...read.strokes];
+      if (infos.length) {
+        log(`snap region: ${infos.length} marker(s); line bottoms ${JSON.stringify(bottoms)}`);
+      }
       try {
         if (rendered) {
           const crop = captureToPage(box, shot, pageSize);
@@ -115,7 +135,8 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   if (choice === null || choice === 'whole') {
     // DOC is in front again: wait for the background work, clean up, and for "Whole page" snap it all.
     await rendering;
-    Sn.recycle(await reading);
+    const read = await reading;
+    Sn.recycle([...read.strokes, ...read.markers]);
     await removeCaptures(pluginDir);
     if (choice === 'whole') {
       await snapPage(settings);

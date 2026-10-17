@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.1 (2026-10-17)
+
+Fixes for what a Nomad user reported on 0.13.0, plus the last page of a document.
+
+- **Underlines sit under the line you highlighted.** A marker highlight became an underline a fixed distance below the stroke, measured on a Manta; on the Nomad's smaller page that distance is one text line, so it struck through the next line. SnapMark now finds the highlighted line in the page itself and draws the underline just under it, on any device and for any text size.
+- **The ↩ link no longer covers text.** It stays at the bottom left when that spot is blank. If not, it moves to the top-right corner, and if that has text too, the page is drawn slightly smaller (about 93%) with your ink scaled to match, so the link gets a free strip at the bottom.
+- **Handwriting on the last page of a document is copied.** The document app refuses that page to plugins (an off-by-one in its page check), so SnapMark now reads it through Notes, which handles it correctly, ink you have just drawn included. Snap region and margin mode on a last page still leave the ink out; margin mode says so.
+- **Whole-page snaps rebuild your ink** as new strokes that follow the page, so it no longer depends on the document and note pages matching. If the ink still can't be added, SnapMark tells you instead of saving a note without it.
+- **New: Save a log file** (SnapMark settings → Problem report) writes SnapMark's recent log, your device type and settings to `EXPORT/`, to attach to a bug report without a computer.
+- The first snap after installing no longer opens a helper note made on another device, once SnapMark has made its own (a Nomad showed it with the toolbar on top).
+- For developers: `npm run devtest` snaps a test PDF on a plugged-in Supernote over adb and checks each note (`SnapMark/devtest/README.md`).
+
 ## 0.13.0 (2026-10-16)
 
 - **Runs on more firmware.** 0.12.0 was built with Supernote's newest plugin library (0.2.3), and some firmware refuses that with "This plugin is not compatible with the current system version. Please update the system." (reported on a Nomad with Chauvet 3.29.45_beta; the plugin never started, so its settings never appeared). SnapMark is now built with plugin library 0.1.65, which every firmware with plugin support accepts. Handwriting is converted between the coordinate systems the two library versions use; nothing else changes.
