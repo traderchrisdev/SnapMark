@@ -64,3 +64,44 @@ export const IDENTITY_LAYOUT_SCALE = 1;
 export function isIdentity(layout: MarginLayout): boolean {
   return layout.scale === IDENTITY_LAYOUT_SCALE && layout.rect.left === 0 && layout.rect.top === 0;
 }
+
+/** How a document page sits in the three frames SnapMark deals with (R81). */
+export interface DocFrames {
+  /** The page is wider than the screen's shape (a landscape PDF page). */
+  landscape: boolean;
+  /** The frame the page's ink is kept in: the screen, or the page zoomed to the screen height (wider). */
+  inkSize: Size;
+  /** Ink px -> render px (the render shows the page fitted to the screen and centred). */
+  inkToRender: MarginLayout;
+  /** Screen px (what DOC shows: a landscape page zoomed to the screen height, from the left) -> ink px. */
+  viewToInk: MarginLayout;
+  /** Screen px -> render px. */
+  viewToRender: MarginLayout;
+}
+
+function affine(scale: number, left: number, top: number, size: Size): MarginLayout {
+  const imageSize = { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
+  const l = Math.round(left);
+  const t = Math.round(top);
+  return { scale, imageSize, rect: { left: l, top: t, right: l + imageSize.width, bottom: t + imageSize.height } };
+}
+
+/**
+ * `pagePt`: the page's own size (any unit; null if unknown). A page as wide as the screen's shape or
+ * narrower is the same in all three frames. A wider one is shown, and its ink kept, zoomed to the
+ * screen height from the left edge (a frame wider than the screen), and rendered fitted to the width
+ * and centred (R81).
+ */
+export function docFrames(pagePt: Size | null, screen: Size): DocFrames {
+  const id = affine(1, 0, 0, screen);
+  if (!pagePt || pagePt.width <= 0 || pagePt.height <= 0 || pagePt.width * screen.height <= screen.width * pagePt.height) {
+    return { landscape: false, inkSize: screen, inkToRender: id, viewToInk: id, viewToRender: id };
+  }
+  const sV = screen.height / pagePt.height;
+  const inkSize = { width: Math.round(pagePt.width * sV), height: screen.height };
+  const sR = Math.min(screen.width / pagePt.width, screen.height / pagePt.height);
+  const offRx = (screen.width - pagePt.width * sR) / 2;
+  const offRy = (screen.height - pagePt.height * sR) / 2;
+  const viewToRender = affine(sR / sV, offRx, offRy, inkSize);
+  return { landscape: true, inkSize, inkToRender: viewToRender, viewToInk: affine(1, 0, 0, screen), viewToRender };
+}

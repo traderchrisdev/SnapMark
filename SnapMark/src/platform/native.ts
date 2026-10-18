@@ -57,6 +57,9 @@ interface Spec {
   whitePng(outPath: string, width: number, height: number): Promise<boolean>;
   inspectRender(path: string, bands: TextBand[], zones: Rect[]): Promise<RenderReport>;
   writeText(path: string, text: string): Promise<boolean>;
+  pdfPageSize(path: string, page: number): Promise<Size>;
+  imageSize(path: string): Promise<Size>;
+  letterbox(srcPath: string, outPath: string, width: number, height: number): Promise<boolean>;
   releasePenLock(): Promise<boolean>;
   foreground(): Promise<FrontTask>;
   bringNoteToFront(): Promise<boolean>;
@@ -103,6 +106,13 @@ export const Native = {
   whitePng: (outPath: string, width: number, height: number) => call('whitePng', m => m.whitePng(outPath, width, height)),
   /** Where highlighted text lines end and whether the link's spots are blank, from one decode of the render (R79). */
   inspectRender: (path: string, bands: TextBand[], zones: Rect[]) => call('inspectRender', m => m.inspectRender(path, bands, zones)),
+  /** `src` fitted and centred on a white image of the given size. */
+  letterbox: (srcPath: string, outPath: string, width: number, height: number) =>
+    call('letterbox', m => m.letterbox(srcPath, outPath, width, height)),
+  /** An image file's pixel size. */
+  imageSize: (path: string) => call('imageSize', m => m.imageSize(path)),
+  /** A PDF page's own size in points (Android's PdfRenderer). */
+  pdfPageSize: (path: string, page: number) => call('pdfPageSize', m => m.pdfPageSize(path, page)),
   /** A UTF-8 text file (the log the user can share). */
   writeText: (path: string, text: string) => call('writeText', m => m.writeText(path, text)),
   /** Let NOTE/DOC take pen input again after a plugin screen (false if this firmware can't). */

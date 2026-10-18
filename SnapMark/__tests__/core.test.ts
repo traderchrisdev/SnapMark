@@ -35,7 +35,7 @@ import {
   tmpRenderPath,
 } from '../src/core/paths';
 import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
-import { fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
+import { docFrames, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
 import { describeAge, isFresh, newestFirst, parseScreenshotTime } from '../src/core/screenshots';
 import { decodeSettings, DEFAULT_SETTINGS, encodeSetting, entryKey, inboxPath } from '../src/core/settings';
 import { StepTimer } from '../src/core/timer';
@@ -523,5 +523,37 @@ describe('Nomad feedback (R79)', () => {
     expect(line[line.length - 1].x).toBe(1280);
     // The old offset for a 3800 marker was 25 px below the band centre: one Nomad text line further down.
     expect(underlinePoints(marker, 3800, nomad.height)[0].y).toBe(288);
+  });
+});
+
+describe('frames of a landscape page (R81)', () => {
+  const manta = { width: 1920, height: 2560 };
+  it('are all the screen for portrait pages, the screen shape and narrower', () => {
+    for (const p of [{ width: 600, height: 800 }, { width: 595, height: 842 }, null]) {
+      const f = docFrames(p, manta);
+      expect(f.landscape).toBe(false);
+      expect(isIdentity(f.inkToRender) && isIdentity(f.viewToInk) && isIdentity(f.viewToRender)).toBe(true);
+    }
+  });
+  it('keep a landscape page\'s ink in the view zoomed to the screen height, render it fitted to the width', () => {
+    const f = docFrames({ width: 800, height: 600 }, manta);
+    expect(f.landscape).toBe(true);
+    expect(f.inkSize).toEqual({ width: 3413, height: 2560 });
+    expect(isIdentity(f.viewToInk)).toBe(true);
+    // Line 05 of the landscape test page, x 48 pt, baseline 214 pt:
+    const view = { x: 48 * (2560 / 600), y: 214 * (2560 / 600) };
+    expect(scalePoints([view], f.inkToRender)[0]).toEqual({ x: 115, y: 1074 });
+  });
+  it('reads a landscape page\'s raw ink with the screen\'s units, flipped around the zoomed width', () => {
+    // The fixture's highlight across line 05, as the device reported it (R81).
+    const frame = { width: 3413, height: 2560 };
+    const first = fromEmr({ x: 7512, y: 27051 }, frame);
+    const last = fromEmr({ x: 7581, y: 13011 }, frame);
+    expect(Math.round(first.x)).toBe(212);
+    expect(Math.round(last.x)).toBe(1873);
+    expect(Math.round(first.y)).toBe(889);
+    const back = toEmr(first, frame);
+    expect(back.x).toBeCloseTo(7512, 6);
+    expect(back.y).toBeCloseTo(27051, 6);
   });
 });

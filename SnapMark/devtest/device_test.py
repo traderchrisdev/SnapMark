@@ -24,8 +24,20 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PDF_NAME = 'SnapMark test.pdf'
 PDF_LOCAL = os.path.join(HERE, PDF_NAME)
-# Without ink: other shapes of document (R81).
+# Other shapes of document (R81). Their ink fixtures, once drawn, sit next to the main one.
 EXTRA_DOCS = {'landscape': 'SnapMark test landscape.pdf', 'epub': 'SnapMark test.epub'}
+EXTRA_INK = {
+    'landscape': 'page 1: one straight marker stroke across line 05, and "ink" beside line 10',
+    'epub': 'page 1 and the last page: one straight marker stroke across the first line of a paragraph, and "ink" beside it',
+}
+
+
+def extra_device(key):
+    return '/storage/emulated/0/Document/' + EXTRA_DOCS[key]
+
+
+def extra_mark_local(key):
+    return os.path.join(HERE, 'fixtures', EXTRA_DOCS[key] + '.mark')
 MARK_LOCAL = os.path.join(HERE, 'fixtures', PDF_NAME + '.mark')
 DEVICE_DOC = '/storage/emulated/0/Document/' + PDF_NAME
 DOC_PKG = 'com.supernote.document'
@@ -231,10 +243,14 @@ def install(snplg):
 
 def settings_row():
     """On SnapMark's plugin page: the "Settings" row (the other "Settings" is the app's title, on the left)."""
-    rows = [xy for text, xy in ui_all() if text == 'Settings' and xy[0] > 600]
-    if not rows:
-        raise SystemExit('the Settings row is not on SnapMark\'s plugin page')
-    return rows[0]
+    end = time.time() + 12
+    while time.time() < end:
+        rows = [xy for text, xy in ui_all() if text == 'Settings' and xy[0] > 600]
+        if rows:
+            return rows[0]
+        sh('input keyevent KEYCODE_WAKEUP')
+        time.sleep(1.5)
+    raise SystemExit('the Settings row is not on SnapMark\'s plugin page')
 
 
 def save_log_check():
@@ -381,6 +397,17 @@ def cmd_setup(_):
           'Then run: python3 devtest/device_test.py save-ink')
 
 
+def cmd_setup_extra(_):
+    for key, name in EXTRA_DOCS.items():
+        adb('push', os.path.join(HERE, name), extra_device(key))
+        sh(f'rm -f {shlex.quote(extra_device(key) + ".mark")}', check=False)
+    open_doc(1, extra_device('landscape'))
+    print('The landscape PDF is open. Draw, with the pen and the marker:')
+    for key, what in EXTRA_INK.items():
+        print(f'  {EXTRA_DOCS[key]}: {what}')
+    print('(Open the EPUB from the file list.) Then run: devtest/.venv/bin/python devtest/device_test.py save-ink')
+
+
 def mark_pages_with_ink(path):
     """Page numbers (1-based) whose block in a .mark file has stroke data."""
     b = open(path, 'rb').read()
@@ -411,6 +438,18 @@ def cmd_save_ink(_):
         raise SystemExit(f'pages {missing} have no ink in the saved file yet: draw on them, leave the document, and run save-ink again')
     os.replace(tmp, MARK_LOCAL)
     print(f'saved {os.path.relpath(MARK_LOCAL, os.getcwd())} ({os.path.getsize(MARK_LOCAL)} bytes, ink on pages {have}); commit it')
+    for key in EXTRA_DOCS:
+        if not sh(f'ls {shlex.quote(extra_device(key) + ".mark")}', check=False).strip():
+            continue
+        tmp = extra_mark_local(key) + '.new'
+        adb('pull', extra_device(key) + '.mark', tmp)
+        pages = mark_pages_with_ink(tmp)
+        if not pages:
+            os.remove(tmp)
+            print(f'  {EXTRA_DOCS[key]}: no ink saved yet, skipped')
+            continue
+        os.replace(tmp, extra_mark_local(key))
+        print(f'saved {os.path.relpath(extra_mark_local(key), os.getcwd())} (ink on pages {pages}); commit it')
 
 
 def restart_host():
@@ -588,14 +627,22 @@ def cmd_run(args):
     if not args.pages and not args.no_extra:
         # A landscape PDF page and an EPUB (first page, last page, a region of the last page): no ink,
         # so these check that the snaps work and carry their link.
-        docs = {}
+        docs, inked = {}, {}
         for key, name in EXTRA_DOCS.items():
-            docs[key] = '/storage/emulated/0/Document/' + name
+            docs[key] = extra_device(key)
             adb('push', os.path.join(HERE, name), docs[key])
+            if os.path.exists(extra_mark_local(key)):
+                adb('push', extra_mark_local(key), docs[key] + '.mark')
+                inked[docs[key]] = mark_pages_with_ink(extra_mark_local(key))
+            else:
+                sh(f'rm -f {shlex.quote(docs[key] + ".mark")}', check=False)
+        sh(f'am force-stop {DOC_PKG}')  # so it reads the restored ink
         open_doc(1, docs['epub'])
         counter = next((k for k in ui_nodes() if re.fullmatch(r'\d+ / \d+', k)), '1 / 1')
         epub_last = int(counter.split('/')[1])
         for name, doc, page, box in (('Landscape PDF page 1', docs['landscape'], 1, None),
+                                     # The screen shows the landscape page zoomed to its height: lines 03-08.
+                                     ('Landscape PDF region', docs['landscape'], 1, (100, 600, 1850, 1300)),
                                      ('EPUB page 1', docs['epub'], 1, None),
                                      (f'EPUB last page ({epub_last})', docs['epub'], epub_last, None),
                                      ('EPUB region of the last page', docs['epub'], epub_last, (200, 300, 1700, 1200))):
@@ -606,6 +653,10 @@ def cmd_run(args):
             res.check(not errors, 'no errors logged', errors[0] if errors else '')
             if page == epub_last and doc == docs['epub']:
                 res.check(any('last page of the document' in l for l in log) or not log, 'treated as the last page', '')
+            if page in inked.get(doc, []):
+                bl = next((l for l in log if 'line bottoms' in l), '')
+                if bl:
+                    res.check('-1' not in bl, 'every highlight found its text line', bl)
             if path:
                 made.append(path)
                 local = os.path.join(out_dir, re.sub(r'\W+', '-', name.lower()).strip('-') + '.note')
@@ -613,6 +664,15 @@ def cmd_run(args):
                 total, _ = render_note(local, local.replace('.note', '.png'))
                 res.check(total == 1, 'note has one page', f'{total} pages')
                 res.check(note_tags(local).get('LINKRECT'), 'note has the link', note_tags(local).get('LINKRECT', ''))
+                if page in inked.get(doc, []):
+                    res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
+                if doc == docs['landscape'] and page in inked.get(doc, []) and box is None:
+                    # The landscape page (800 x 600 pt) is fitted to the width (2.4 px/pt) and centred
+                    # (560 px down); the fixture highlights line 05 (baseline 214 pt, next line's top 229 pt).
+                    _, gray = render_note(local, local.replace('.note', '.png'))
+                    lo, hi = round(560 + 2.4 * 214) - 4, round(560 + 2.4 * (240 - 0.72 * 15))
+                    y, cnt = underline_row(gray, 160, 1700, lo - 60, hi + 60)
+                    res.check(cnt > 60 and lo <= y < hi, 'underline under line 05', f'row {y} ({cnt} grey px); must be in [{lo}, {hi})')
             res.log = log
             results.append(res)
 
@@ -680,6 +740,7 @@ def main():
     sub = p.add_subparsers(dest='cmd', required=True)
     sub.add_parser('setup')
     sub.add_parser('save-ink')
+    sub.add_parser('setup-extra')
     r = sub.add_parser('run')
     r.add_argument('--pages', help='comma-separated pages to snap (default 1,2,3 plus a region snap)')
     r.add_argument('--extra', help='"region" to add the region snap when --pages is given')
@@ -691,7 +752,7 @@ def main():
     r.add_argument('--no-extra', action='store_true', help='skip the landscape PDF and EPUB snaps')
     r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
     args = p.parse_args()
-    {'setup': cmd_setup, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
+    {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 
 
 if __name__ == '__main__':

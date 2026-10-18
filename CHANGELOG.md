@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.3 (2026-10-18)
+
+- **Fixed: handwriting on landscape PDF pages landed in the wrong place** (a short line instead of an underline, words missing). The PDF app keeps a landscape page's ink in its zoomed view and renders the page as a landscape image; SnapMark now reads the ink in that frame and fits the image into the note, so Snap page, Snap region, margin mode and the inbox all place it right.
+- For developers: the device test also snaps a landscape PDF page and an EPUB with ink, and checks Save a log file (17 snaps).
+
 ## 0.13.2 (2026-10-17)
 
 - **Handwriting on the last page of a document is copied everywhere now.** 0.13.1 fixed it for Snap page; Snap region, margin mode and the Snaps inbox left it out. The document app refuses its last page to plugins, so SnapMark reads that page's ink through Notes: margin mode opens the snap first, and a region snap adds the ink right after Notes has the note open (with **Stay here**, you're taken back to the page afterwards).

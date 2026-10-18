@@ -566,6 +566,67 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         return bottom;
     }
 
+    /** `src` fitted (aspect kept) and centred on a white `width` x `height` image `out`. */
+    @ReactMethod
+    public void letterbox(String srcPath, String outPath, int width, int height, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap src = BitmapFactory.decodeFile(srcPath);
+                if (src == null) throw new IOException("cannot decode " + srcPath);
+                float scale = Math.min(width / (float) src.getWidth(), height / (float) src.getHeight());
+                float w = src.getWidth() * scale, h = src.getHeight() * scale;
+                float l = (width - w) / 2f, t = (height - h) / 2f;
+                Bitmap page = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                Canvas cv = new Canvas(page);
+                cv.drawColor(Color.WHITE);
+                cv.drawBitmap(src, null, new RectF(l, t, l + w, t + h), new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
+                src.recycle();
+                writeGrayPng(page, new File(outPath));
+                page.recycle();
+                promise.resolve(true);
+            } catch (Throwable e) {
+                Log.e(TAG, "letterbox failed", e);
+                promise.reject("E_LETTERBOX", e.toString(), e);
+            }
+        }).start();
+    }
+
+    /** An image file's pixel size, without decoding it. */
+    @ReactMethod
+    public void imageSize(String path, Promise promise) {
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, o);
+        if (o.outWidth <= 0) {
+            promise.reject("E_IMAGE", "cannot read " + path);
+            return;
+        }
+        WritableMap m = Arguments.createMap();
+        m.putInt("width", o.outWidth);
+        m.putInt("height", o.outHeight);
+        promise.resolve(m);
+    }
+
+    /** A PDF page's own size in points (to tell a landscape page, R81), from Android's PdfRenderer. */
+    @ReactMethod
+    public void pdfPageSize(String path, int page, Promise promise) {
+        new Thread(() -> {
+            try (android.os.ParcelFileDescriptor fd = android.os.ParcelFileDescriptor.open(new File(path), android.os.ParcelFileDescriptor.MODE_READ_ONLY);
+                 android.graphics.pdf.PdfRenderer pdf = new android.graphics.pdf.PdfRenderer(fd)) {
+                if (page < 0 || page >= pdf.getPageCount()) throw new IOException("no page " + page);
+                try (android.graphics.pdf.PdfRenderer.Page p = pdf.openPage(page)) {
+                    WritableMap m = Arguments.createMap();
+                    m.putInt("width", p.getWidth());
+                    m.putInt("height", p.getHeight());
+                    promise.resolve(m);
+                }
+            } catch (Throwable e) {
+                Log.e(TAG, "pdfPageSize failed", e);
+                promise.reject("E_PDF", e.toString(), e);
+            }
+        }).start();
+    }
+
     /** Writes a UTF-8 text file (the log the user can share). Overwrites. */
     @ReactMethod
     public void writeText(String path, String text, Promise promise) {

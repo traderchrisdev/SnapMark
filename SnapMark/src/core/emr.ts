@@ -2,7 +2,8 @@
 // R77) give stroke points in EMR digitizer coordinates instead of page pixels. Only stroke points: the
 // library's comments say picture rects are EMR too, but NOTE takes those in page pixels (R77). The
 // digitizer is rotated against the page: EMR x runs down the page, EMR y runs right to left. Same math
-// as PointUtils in sn-plugin-lib 0.1.65; pure, so it can be unit-tested.
+// as PointUtils in sn-plugin-lib 0.1.65, plus the frame of a landscape PDF page (R81); pure, so it can
+// be unit-tested.
 
 import type { Size } from './backlink';
 
@@ -31,12 +32,40 @@ function emrRange(page: Size): [number, number] {
   return portrait ? r : [r[1], r[0]];
 }
 
+const PORTRAIT_SCREENS: ReadonlyArray<Size> = [
+  { width: 1920, height: 2560 },
+  { width: 1404, height: 1872 },
+  { width: 2560, height: 3414 },
+  { width: 1872, height: 2496 },
+];
+
+/**
+ * EMR units per px down the page (kx) and across it (ky), and the width the x axis is flipped around.
+ * A known page size uses its own range. A wider frame as tall as a screen is a landscape PDF page
+ * zoomed to the screen height (R81): it keeps the screen's units, flipped around its own width.
+ */
+function emrAxes(page: Size): { kx: number; ky: number; width: number } {
+  const known = PORTRAIT_SCREENS.some(
+    s => (s.width === page.width && s.height === page.height) || (s.width === page.height && s.height === page.width),
+  );
+  if (known) {
+    const [maxX, maxY] = emrRange(page);
+    return { kx: maxX / (page.height - 1), ky: maxY / (page.width - 1), width: page.width };
+  }
+  const screen = PORTRAIT_SCREENS.find(s => s.height === page.height && page.width > s.width);
+  if (!screen) {
+    throw new Error(`no EMR range for a ${page.width}x${page.height} page`);
+  }
+  const [maxX, maxY] = emrRange(screen);
+  return { kx: maxX / (screen.height - 1), ky: maxY / (screen.width - 1), width: page.width };
+}
+
 export function toEmr(p: Point, page: Size): Point {
-  const [maxX, maxY] = emrRange(page);
-  return { x: p.y * (maxX / (page.height - 1)), y: (page.width - 1 - p.x) * (maxY / (page.width - 1)) };
+  const a = emrAxes(page);
+  return { x: p.y * a.kx, y: (a.width - 1 - p.x) * a.ky };
 }
 
 export function fromEmr(p: Point, page: Size): Point {
-  const [maxX, maxY] = emrRange(page);
-  return { x: page.width - 1 - p.y / (maxY / (page.width - 1)), y: p.x / (maxX / (page.height - 1)) };
+  const a = emrAxes(page);
+  return { x: a.width - 1 - p.y / a.ky, y: p.x / a.kx };
 }

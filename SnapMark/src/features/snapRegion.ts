@@ -11,7 +11,7 @@
 import type { Element } from 'sn-plugin-lib';
 import type { Rect, Size } from '../core/backlink';
 import { LINE_BOTTOM_SEARCH_PX, UNDERLINE_PRESSURE } from '../core/highlights';
-import { scaleThicknessBy } from '../core/margin';
+import { scalePoints, scaleThicknessBy, type DocFrames, type MarginLayout } from '../core/margin';
 import { isDocumentPath, tmpDir } from '../core/paths';
 import { captureToPage, mapToRegion, mostlyInside, regionScale } from '../core/region';
 import { fitInsetsDp } from '../core/fit';
@@ -25,7 +25,7 @@ import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import type { DocPage } from './annotateScreenshot';
 import { askForRegion, type RegionChoice } from './region';
-import { documentPageSize, isLastPage, markerInfos, readHandwriting, snapPage, underlinesFrom, type Handwriting } from './snapPage';
+import { docFramesOf, documentPageSize, isLastPage, markerInfos, normalizeRender, readHandwriting, snapPage, underlinesFrom, type Handwriting } from './snapPage';
 
 /** Lets the plugin menu that held the button close before the screen is captured. */
 const MENU_CLOSE_MS = 300;
@@ -103,13 +103,22 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
       const [rendered, read] = await Promise.all([rendering, reading]);
       t.mark('render');
       if (rendered) {
+        // The box is drawn on the screen, which shows the page the way its ink is kept (R81); the render
+        // may show it differently (a landscape page), so the cut is mapped onto the render.
         const crop = captureToPage(box, shot, pageSize);
-        const dst = await placeRegion(render, out, crop, pageSize, settings);
+        const frames = await docFramesOf(docPath, page, pageSize);
+        await normalizeRender(render, pageSize, frames);
+        const renderCrop = mapRect(crop, frames.viewToRender);
+        const dst = await placeRegion(render, out, renderCrop, pageSize, settings);
+        const inkCrop = mapRect(crop, frames.viewToInk);
+        if (frames.landscape) {
+          log(`snap region: landscape page; box ${JSON.stringify(crop)} -> render ${JSON.stringify(renderCrop)} -> ${JSON.stringify(dst)}`);
+        }
         if (read) {
-          strokes = await regionInk(read, render, crop, dst, pageSize);
+          strokes = await regionInk(read, render, inkCrop, dst, pageSize, frames);
         } else {
           log('snap region: last page of the document; reading the ink once Notes has the note (R80)');
-          lateInk = async () => regionInk(await readHandwriting(docPath, page, settings.highlightStyle), render, crop, dst, pageSize);
+          lateInk = async () => regionInk(await readHandwriting(docPath, page, settings.highlightStyle), render, inkCrop, dst, pageSize, frames);
         }
       } else {
         // No render: cut the screen capture, which has the ink in it already.
@@ -181,35 +190,46 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
  * The ink inside the box, moved and scaled into the placed cut-out: the strokes as they are, each
  * marker as an underline just under its text line in `render` (page px). Recycles `read`.
  */
-async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rect, pageSize: Size): Promise<Element[]> {
-  const infos = await markerInfos(read.markers, pageSize).catch(() => []);
+async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rect, pageSize: Size, frames: DocFrames): Promise<Element[]> {
+  const inkFrame = frames.inkToRender;
+  const infos = await markerInfos(read.markers, frames.inkSize).catch(() => []);
   Sn.recycle(read.markers);
-  const bottoms =
+  // The render shows the page in its own frame: bands go there and the line bottoms come back (R81).
+  const report =
     infos.length && Native.available
-      ? (
-          await Native.inspectRender(
-            render,
-            infos.map(i => ({ left: i.band.left, right: i.band.right, y: i.band.y, maxDy: LINE_BOTTOM_SEARCH_PX })),
-            [],
-          ).catch(e => {
-            logError('snap region: find the highlighted lines (thickness-based underlines)', e);
-            return null;
-          })
-        )?.lineBottoms ?? null
+      ? await Native.inspectRender(
+          render,
+          infos.map(i => {
+            const [l, r] = scalePoints([{ x: i.band.left, y: i.band.y }, { x: i.band.right, y: i.band.y }], inkFrame);
+            return { left: l.x, right: r.x, y: l.y, maxDy: Math.round(LINE_BOTTOM_SEARCH_PX * inkFrame.scale) };
+          }),
+          [],
+        ).catch(e => {
+          logError('snap region: find the highlighted lines (thickness-based underlines)', e);
+          return null;
+        })
       : null;
-  const handwriting = [...(await underlinesFrom(infos, pageSize, bottoms)), ...read.strokes];
+  const bottoms = report ? report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - inkFrame.rect.top) / inkFrame.scale))) : null;
+  const handwriting = [...(await underlinesFrom(infos, frames.inkSize, bottoms)), ...read.strokes];
   if (infos.length) {
     log(`snap region: ${infos.length} marker(s); line bottoms ${JSON.stringify(bottoms)}`);
   }
   try {
-    return await regionStrokes(handwriting, crop, dst, pageSize);
+    return await regionStrokes(handwriting, crop, dst, frames.inkSize, pageSize);
   } finally {
     Sn.recycle(handwriting);
   }
 }
 
+/** A rect through a layout (corner by corner; the layouts here only scale and move). */
+function mapRect(r: Rect, layout: MarginLayout): Rect {
+  const [a, b] = scalePoints([{ x: r.left, y: r.top }, { x: r.right, y: r.bottom }], layout);
+  return { left: a.x, top: a.y, right: b.x, bottom: b.y };
+}
+
 /** The page's strokes that are mostly inside the box, moved and scaled into the placed cut-out. */
-async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, dst: Rect, pageSize: Size): Promise<Element[]> {
+/** `crop` in ink px (points read in `inkSize`), `dst` on a note page of `pageSize`. */
+async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, dst: Rect, inkSize: Size, pageSize: Size): Promise<Element[]> {
   const scale = regionScale(crop, dst);
   const out: Element[] = [];
   let shapes = 0;
@@ -220,7 +240,7 @@ async function regionStrokes(handwriting: ReadonlyArray<Element>, crop: Rect, ds
       shapes++;
       continue;
     }
-    const points = await Sn.strokePoints(stroke, count, pageSize);
+    const points = await Sn.strokePoints(stroke, count, inkSize);
     if (!mostlyInside(points, crop)) {
       continue;
     }

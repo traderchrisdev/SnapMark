@@ -37,7 +37,7 @@ import {
 } from '../core/paths';
 import { PixelRatio } from 'react-native';
 import { fitInsetsDp } from '../core/fit';
-import { fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type MarginLayout } from '../core/margin';
+import { docFrames, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type DocFrames, type MarginLayout } from '../core/margin';
 import { insetsToPx } from '../core/region';
 import { collects, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
@@ -68,8 +68,12 @@ interface Snap {
   /** Ink and underlines in document-page px; null: read them once NOTE is in front (R80). */
   handwriting: Element[] | null;
   highlightStyle: HighlightStyle;
-  /** Document page px -> render px (identity unless letterboxed into the inbox or shrunk for the link). */
+  /** Ink px -> render px (identity unless landscape, letterboxed into the inbox or shrunk for the link). */
   inkLayout: MarginLayout;
+  /** Ink px -> document page px (identity unless the page is wider than the screen, R81). */
+  inkFrame: MarginLayout;
+  /** The frame the ink's points are in (the screen, or sideways for a landscape page). */
+  inkSize: Size;
   /** Where the backlink goes, in render px (bottom-left, or top-right when the bottom holds text, R79). */
   link: TextLinkSpec;
   renderSize: Size;
@@ -95,6 +99,10 @@ export async function snapPage(settings: Settings): Promise<void> {
   // DOC reports the page as displayed, which matches the note page on the same device (R3, R16).
   const lastPage = await isLastPage(page);
   const pageSize = await documentPageSize(docPath, page, lastPage);
+  // A page wider than the screen keeps its ink in a sideways frame (R81).
+  const frames = await docFramesOf(docPath, page, pageSize);
+  const inkFrame = frames.inkToRender;
+  const inkSize = frames.inkSize;
   const inbox = inboxPath(settings);
   const appendToInbox = collects(settings) && (await fs.exists(inbox));
   const margin =
@@ -111,14 +119,18 @@ export async function snapPage(settings: Settings): Promise<void> {
   await clearDir(tmp);
   let render = tmpRenderPath(pluginDir, new Date());
   await Sn.renderDocPage(page, render, renderSize, settings.keepHighlights);
+  await normalizeRender(render, renderSize, frames);
   t.mark('render');
 
-  // Document page px -> render px.
-  let inkLayout: MarginLayout = appendToInbox
-    ? fitLayout(pageSize, renderSize)
-    : margin
-      ? { scale: margin.scale, imageSize: margin.imageSize, rect: { left: 0, top: 0, right: margin.imageSize.width, bottom: margin.imageSize.height } }
-      : fitLayout(pageSize, pageSize);
+  // Ink px -> render px: the ink's frame onto the page (R81), then the page onto the render.
+  let inkLayout: MarginLayout = composeLayouts(
+    inkFrame,
+    appendToInbox
+      ? fitLayout(pageSize, renderSize)
+      : margin
+        ? { scale: margin.scale, imageSize: margin.imageSize, rect: { left: 0, top: 0, right: margin.imageSize.width, bottom: margin.imageSize.height } }
+        : fitLayout(pageSize, pageSize),
+  );
   let link = backlinkSpec(docPath, docTitle(docPath), page, renderSize);
   // Where the link goes: bottom-left if blank, else top-right if blank, else a strip under the page (R79).
   const topLink = backlinkSpecTop(docPath, docTitle(docPath), page, renderSize);
@@ -148,7 +160,7 @@ export async function snapPage(settings: Settings): Promise<void> {
       log('snap page: last page of the document; reading the ink once Notes is in front (R80)');
     } else {
       try {
-        handwriting = await buildInk(docPath, page, pageSize, render, inkLayout, settings.highlightStyle);
+        handwriting = await buildInk(docPath, page, inkSize, render, inkLayout, settings.highlightStyle);
       } catch (e) {
         if (errorCode(e) === CODE_PAGE_NOT_FOUND) {
           handwriting = null;
@@ -171,7 +183,7 @@ export async function snapPage(settings: Settings): Promise<void> {
     const blank = appendToInbox || margin ? null : await pooledBlank(pluginDir, isPortrait);
     t.mark('paths');
 
-    const snap: Snap = { notePath, docPath, title, page, pageSize, render, handwriting, highlightStyle: settings.highlightStyle, inkLayout, link, renderSize };
+    const snap: Snap = { notePath, docPath, title, page, pageSize, render, handwriting, highlightStyle: settings.highlightStyle, inkLayout, inkFrame, inkSize, link, renderSize };
     const stay = settings.afterSnap === 'stay';
     let linked: boolean;
     let where: string;
@@ -281,7 +293,7 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   }
   let ink: Element[] = snap.handwriting ?? [];
   if (late) {
-    ink = await buildInk(snap.docPath, snap.page, snap.pageSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
+    ink = await buildInk(snap.docPath, snap.page, snap.inkSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
       logError('read the last page\'s handwriting in Notes (snapping without it)', e);
       return [] as Element[];
     });
@@ -289,7 +301,7 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   const noteSize = await Sn.pageSize(snap.notePath, 0);
   const sameFrame = noteSize.width === snap.pageSize.width && noteSize.height === snap.pageSize.height;
   const picture = await Sn.newPictureElement(snap.render, layout.rect, 0);
-  const strokes = sameFrame ? await scaledStrokes(ink, layout, snap.pageSize, noteSize) : [];
+  const strokes = sameFrame ? await scaledStrokes(ink, composeLayouts(snap.inkFrame, layout), snap.inkSize, noteSize) : [];
   if (late) {
     Sn.recycle(ink);
   }
@@ -433,6 +445,41 @@ async function buildInk(docPath: string, page: number, pageSize: Size, render: s
   }
 }
 
+/** The page's frames (R81): only a PDF page wider than the screen differs from the screen itself. */
+export async function docFramesOf(docPath: string, page: number, pageSize: Size): Promise<DocFrames> {
+  const pdf = /\.pdf$/i.test(docPath) && Native.available ? await Native.pdfPageSize(docPath, page).catch(e => {
+    logError('PDF page size (assuming a portrait page)', e);
+    return null;
+  }) : null;
+  const frames = docFrames(pdf, pageSize);
+  if (frames.landscape && pdf) {
+    log(`page ${page + 1} is ${pdf.width}x${pdf.height} pt: landscape; ink frame ${frames.inkSize.width}x${frames.inkSize.height}, to the render x${frames.inkToRender.scale.toFixed(4)} +${frames.inkToRender.rect.left},${frames.inkToRender.rect.top}`);
+  }
+  return frames;
+}
+
+/**
+ * DOC renders a landscape page as a landscape image whatever size it is asked for (R81). Letterbox it
+ * into the asked size, so the render is in the frame everything else assumes (the page fitted and
+ * centred). No-op for any other page.
+ */
+export async function normalizeRender(render: string, size: Size, frames: DocFrames): Promise<void> {
+  if (!frames.landscape || !Native.available) {
+    return;
+  }
+  const got = await Native.imageSize(render).catch(() => null);
+  if (got && (got.width !== size.width || got.height !== size.height)) {
+    const fitted = `${render}.fit.png`;
+    await Native.letterbox(render, fitted, size.width, size.height);
+    await fs.copy(fitted, render).catch(async () => {
+      await fs.remove(render).catch(() => undefined);
+      await fs.copy(fitted, render);
+    });
+    await fs.remove(fitted).catch(() => undefined);
+    log(`landscape render ${got.width}x${got.height} letterboxed into ${size.width}x${size.height}`);
+  }
+}
+
 /** True when `page` (0-based) is the open document's last page, which DOC refuses some calls for (R80). */
 export async function isLastPage(page: number): Promise<boolean> {
   const total = await Sn.docTotalPages().catch(() => -1);
@@ -513,7 +560,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
   let late: Element[] = [];
   if (handwriting === null) {
     // NOTE is in front now and reads the document's ink itself, last page included (R80).
-    late = await buildInk(snap.docPath, snap.page, snap.pageSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
+    late = await buildInk(snap.docPath, snap.page, snap.inkSize, snap.render, snap.inkLayout, snap.highlightStyle).catch(e => {
       logError('read the last page\'s handwriting in Notes (snapping without it)', e);
       return [] as Element[];
     });
@@ -530,7 +577,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
     layout = composeLayouts(layout, { scale: 1, imageSize: renderSize, rect: { left: dx, top: dy, right: dx + renderSize.width, bottom: dy + renderSize.height } });
     link = backlinkSpec(snap.docPath, snap.title, snap.page, noteSize);
   }
-  const strokes = await scaledStrokes(handwriting, layout, snap.pageSize, noteSize);
+  const strokes = await scaledStrokes(handwriting, layout, snap.inkSize, noteSize);
   const shapes = isIdentity(layout) ? handwriting.filter(e => e.type === TYPE_GEOMETRY) : [];
   for (const e of [...strokes, ...shapes]) {
     e.pageNum = notePage;
