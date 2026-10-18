@@ -24,6 +24,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PDF_NAME = 'SnapMark test.pdf'
 PDF_LOCAL = os.path.join(HERE, PDF_NAME)
+# Without ink: other shapes of document (R81).
+EXTRA_DOCS = {'landscape': 'SnapMark test landscape.pdf', 'epub': 'SnapMark test.epub'}
 MARK_LOCAL = os.path.join(HERE, 'fixtures', PDF_NAME + '.mark')
 DEVICE_DOC = '/storage/emulated/0/Document/' + PDF_NAME
 DOC_PKG = 'com.supernote.document'
@@ -100,6 +102,17 @@ def bubble_center():
     return best
 
 
+def ui_all():
+    """Every labelled view on screen as (text, (x, y)), top to bottom as uiautomator lists them."""
+    sh('uiautomator dump /sdcard/snapmark-ui.xml', check=False)
+    xml = sh('cat /sdcard/snapmark-ui.xml', check=False)
+    out = []
+    for m in re.finditer(r'text=(?:"([^"]+)"|\'([^\']+)\')[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml):
+        l, t, r, b = map(int, m.groups()[2:])
+        out.append((m.group(1) or m.group(2), ((l + r) // 2, (t + b) // 2)))
+    return out
+
+
 def ui_nodes():
     sh('uiautomator dump /sdcard/snapmark-ui.xml', check=False)
     xml = sh('cat /sdcard/snapmark-ui.xml', check=False)
@@ -107,7 +120,8 @@ def ui_nodes():
     # uiautomator quotes a text containing " with single quotes.
     for m in re.finditer(r'text=(?:"([^"]+)"|\'([^\']+)\')[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml):
         l, t, r, b = map(int, m.groups()[2:])
-        nodes[m.group(1) or m.group(2)] = ((l + r) // 2, (t + b) // 2)
+        # The first (topmost) one wins: "Off" is in margin mode and, further down, the floating button.
+        nodes.setdefault(m.group(1) or m.group(2), ((l + r) // 2, (t + b) // 2))
     return nodes
 
 
@@ -125,9 +139,9 @@ def tap(xy):
     sh(f'input tap {xy[0]} {xy[1]}')
 
 
-def open_doc(page):
+def open_doc(page, path=None):
     sh('am start -a android.intent.action.VIEW -n com.supernote.document/.MainActivity '
-       f'--es file_path {shlex.quote(DEVICE_DOC)} --ei page {page - 1} --ei source_type 0')
+       f'--es file_path {shlex.quote(path or DEVICE_DOC)} --ei page {page - 1} --ei source_type 0')
     end = time.time() + 15
     while time.time() < end:
         if 'DocumentActivity' in resumed():
@@ -159,9 +173,11 @@ def tap_label(label, timeout=10, pick=None):
 
 def close_plugin_screens():
     """SnapMark's own screens (settings, region) float over every app: close any left open."""
-    for _ in range(3):
+    for _ in range(6):
         n = ui_nodes()
-        if 'SnapMark settings' in n and 'Close' in n:
+        if 'Problem report' in n and 'Close' not in n:  # SnapMark settings, scrolled down
+            sh('input swipe 960 600 960 2200 400')
+        elif 'SnapMark settings' in n and 'Close' in n:
             tap(n['Close'])
         elif 'Drag over the part you want to keep.' in n and 'Cancel' in n:
             tap(n['Cancel'])
@@ -213,11 +229,49 @@ def install(snplg):
     sh('input keyevent KEYCODE_HOME')
 
 
+def settings_row():
+    """On SnapMark's plugin page: the "Settings" row (the other "Settings" is the app's title, on the left)."""
+    rows = [xy for text, xy in ui_all() if text == 'Settings' and xy[0] > 600]
+    if not rows:
+        raise SystemExit('the Settings row is not on SnapMark\'s plugin page')
+    return rows[0]
+
+
+def save_log_check():
+    """SnapMark settings → Problem report → Save a log file: the file appears in EXPORT/ with its header."""
+    res = Result('Save a log file')
+    _, n = installed_version()
+    tap(settings_row())
+    time.sleep(2.5)
+    for _ in range(4):
+        if 'Save a log file' in ui_nodes():
+            break
+        sh('input swipe 960 2200 960 600 400')
+        time.sleep(1.5)
+    tap_label('Save a log file')
+    time.sleep(2.5)
+    status = next((k for k in ui_nodes() if k.startswith('Saved EXPORT/') or k.startswith('Not saved')), '')
+    res.check(status.startswith('Saved EXPORT/'), 'saved', status or 'no status line')
+    if status.startswith('Saved EXPORT/'):
+        path = '/storage/emulated/0/' + status.replace('Saved ', '')
+        head = sh(f'head -3 {shlex.quote(path)}', check=False)
+        res.check('SnapMark ' in head and 'sn-plugin-lib' in head and 'device type' in head, 'has version, library and device type', head.splitlines()[1] if len(head.splitlines()) > 1 else head)
+        sh(f'rm -f {shlex.quote(path)}', check=False)
+    for _ in range(4):  # back to the top, where Close is
+        if 'Close' in ui_nodes():
+            break
+        sh('input swipe 960 600 960 2200 400')
+        time.sleep(1.5)
+    tap_label('Close')
+    sh('input keyevent KEYCODE_HOME')
+    res.log = []
+    return res
+
+
 def snapmark_settings(*choices):
     """Open SnapMark's settings screen and tap each option label in turn (e.g. '75%', 'Off')."""
     _, n = installed_version()
-    rows = [v for k, v in n.items() if k == 'Settings' and v[0] > 600]
-    tap(rows[0] if rows else n['Settings'])
+    tap(settings_row())
     time.sleep(2.5)
     for label in choices:
         tap_label(label)
@@ -392,9 +446,9 @@ def note_files():
     return {l.strip() for l in out.splitlines() if l.strip().endswith('.note')}
 
 
-def snap(page, region_box=None):
+def snap(page, region_box=None, doc=None):
     """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None)."""
-    if not open_doc(page):
+    if not open_doc(page, doc):
         return [], None
     # A full log buffer makes logd drop the plugin host's lines first (it is uid 1000, the biggest
     # logger); clear it so this snap's lines survive.
@@ -409,7 +463,7 @@ def snap(page, region_box=None):
     if not nodes:
         # Right after another snap the selection screen can come up unseen; close it and try once more.
         close_plugin_screens()
-        if not open_doc(page):
+        if not open_doc(page, doc):
             return snapmark_lines(stamp), None
         tap(bubble_center() or b)
         nodes = wait_ui('Whole page', 25)
@@ -531,6 +585,37 @@ def cmd_run(args):
             snapmark_settings('Off')
             restart_host()
 
+    if not args.pages and not args.no_extra:
+        # A landscape PDF page and an EPUB (first page, last page, a region of the last page): no ink,
+        # so these check that the snaps work and carry their link.
+        docs = {}
+        for key, name in EXTRA_DOCS.items():
+            docs[key] = '/storage/emulated/0/Document/' + name
+            adb('push', os.path.join(HERE, name), docs[key])
+        open_doc(1, docs['epub'])
+        counter = next((k for k in ui_nodes() if re.fullmatch(r'\d+ / \d+', k)), '1 / 1')
+        epub_last = int(counter.split('/')[1])
+        for name, doc, page, box in (('Landscape PDF page 1', docs['landscape'], 1, None),
+                                     ('EPUB page 1', docs['epub'], 1, None),
+                                     (f'EPUB last page ({epub_last})', docs['epub'], epub_last, None),
+                                     ('EPUB region of the last page', docs['epub'], epub_last, (200, 300, 1700, 1200))):
+            res = Result(name)
+            log, path = snap(page, box, doc)
+            res.check(path, 'snap finished', path or 'no snap log line')
+            errors = [l for l in log if l.startswith('ERROR')]
+            res.check(not errors, 'no errors logged', errors[0] if errors else '')
+            if page == epub_last and doc == docs['epub']:
+                res.check(any('last page of the document' in l for l in log) or not log, 'treated as the last page', '')
+            if path:
+                made.append(path)
+                local = os.path.join(out_dir, re.sub(r'\W+', '-', name.lower()).strip('-') + '.note')
+                adb('pull', path, local)
+                total, _ = render_note(local, local.replace('.note', '.png'))
+                res.check(total == 1, 'note has one page', f'{total} pages')
+                res.check(note_tags(local).get('LINKRECT'), 'note has the link', note_tags(local).get('LINKRECT', ''))
+            res.log = log
+            results.append(res)
+
     inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
     if not args.pages and not args.no_inbox:
         if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
@@ -561,6 +646,16 @@ def cmd_run(args):
                     sh(f'rm -f {shlex.quote(inbox)}', check=False)
                 snapmark_settings('A new note each')
                 restart_host()
+
+    if not args.pages and not args.no_log:
+        try:
+            results.append(save_log_check())
+        except SystemExit as e:
+            r = Result('Save a log file')
+            r.check(False, 'settings screen', str(e))
+            r.log = []
+            results.append(r)
+            close_plugin_screens()
 
     if not args.keep:
         for path in made:
@@ -593,6 +688,8 @@ def main():
                    help='install a package first through Settings (default: build/outputs/SnapMark.snplg)')
     r.add_argument('--no-margin', action='store_true', help='skip the margin-mode snaps (they switch the setting to 75%% and back)')
     r.add_argument('--no-inbox', action='store_true', help='skip the Snaps inbox snaps (only run when there is no inbox yet)')
+    r.add_argument('--no-extra', action='store_true', help='skip the landscape PDF and EPUB snaps')
+    r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
     args = p.parse_args()
     {'setup': cmd_setup, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 

@@ -49,7 +49,11 @@ npm run devtest -- --install
 | region p1 | Snap region over lines 02–08 of page 1 | snap made; highlights found their lines |
 | region p4 | Snap region on the last page | the ink is added once Notes has the note (R80) |
 | margin p1, p4 | Snap page with margin mode 75% | made in margin mode; ink copied (on the last page, read in Notes) |
+| inbox | Region snaps of page 1 and the last page into the Snaps inbox (only when you have no inbox; it is deleted after) | the last page's ink is on inbox page 2 |
+| landscape | Page 1 of `SnapMark test landscape.pdf` | snap made, one page, link, no errors |
+| EPUB | First page, last page and a region of the last page of `SnapMark test.epub` | snap made, one page, link, no errors; the last page is treated as such |
+| log | SnapMark settings → Save a log file | file in `EXPORT/` with version, library and device type (deleted after) |
 
 Each underline must sit between its line's baseline and the next line's top. `make_test_pdf.py`
-regenerates the PDF and `layout.json` (every line's position in page px); change both together, and
+regenerates the landscape PDF and the EPUB too, and the PDF and `layout.json` (every line's position in page px); change both together, and
 draw the fixture ink again if the layout moves.

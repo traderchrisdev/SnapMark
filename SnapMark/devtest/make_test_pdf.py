@@ -71,11 +71,12 @@ def build():
     pages.append({'name': 'no-bottom-margin', 'content': c + body, 'lines': lines, 'expect_link': 'top-right'})
     # 4: filler.
     c = text(48, 70, 'SnapMark test  -  4  Last page (leave blank)', 22, 'F2')
-    pages.append({'name': 'last', 'content': c, 'lines': [], 'expect_link': None})
+    pages.append({'name': 'last', 'content': c, 'lines': [], 'expect_link': 'bottom'})
     return pages
 
 
 def write_pdf(pages, path):
+    """Each page may carry its own 'size' (w, h) in pt; the default is W x H."""
     objs = []
 
     def add(body):
@@ -89,8 +90,9 @@ def write_pdf(pages, path):
     for p in pages:
         data = p['content'].encode('cp1252')
         cid = add(b'<< /Length %d >>\nstream\n' % len(data) + data + b'\nendstream')
+        pw, ph = p.get('size', (W, H))
         kids.append(add(('<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R '
-                         '/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>' % (pages_id, W, H, cid, font, bold)).encode()))
+                         '/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>' % (pages_id, pw, ph, cid, font, bold)).encode()))
     assert add(('<< /Type /Pages /Kids [%s] /Count %d >>' % (' '.join(f'{k} 0 R' for k in kids), len(kids))).encode()) == pages_id
     catalog = add(b'<< /Type /Catalog /Pages %d 0 R >>' % pages_id)
     out = bytearray(b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n')
@@ -107,10 +109,55 @@ def write_pdf(pages, path):
         f.write(out)
 
 
+def write_landscape(path):
+    """Page 1 landscape (800 x 600 pt), page 2 portrait, so page 1 is not the last page."""
+    lw, lh = 800, 600
+
+    def t(x, y_top, s, size=SIZE, font='F1'):
+        return f'0 g BT /{font} {size} Tf {x} {lh - y_top} Td ({esc(s)}) Tj ET\n'
+    c = t(48, 60, 'SnapMark test  -  landscape page', 22, 'F2')
+    for i in range(18):
+        c += t(48, 110 + i * LEAD, line_text(i + 1) + '  ' + line_text(i + 7)[9:30])
+    write_pdf([{'content': c, 'size': (lw, lh)}, {'content': text(48, 70, 'SnapMark test  -  page after the landscape page', 22, 'F2')}], path)
+
+
+def write_epub(path):
+    """A plain EPUB 2 with enough text for several reflowed pages."""
+    import zipfile
+    chapters = []
+    for c in range(1, 4):
+        paras = ''.join(f'<p>{esc_xml(line_text(n))} {esc_xml(" ".join(WORDS))}</p>' for n in range(1, 25))
+        chapters.append((f'ch{c}.xhtml', f'Chapter {c}', paras))
+    with zipfile.ZipFile(path, 'w') as z:
+        z.writestr(zipfile.ZipInfo('mimetype'), 'application/epub+zip')
+        z.writestr('META-INF/container.xml', '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                   '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        items = ''.join(f'<item id="c{i}" href="{f}" media-type="application/xhtml+xml"/>' for i, (f, _, _) in enumerate(chapters))
+        spine = ''.join(f'<itemref idref="c{i}"/>' for i in range(len(chapters)))
+        z.writestr('OEBPS/content.opf', '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">'
+                   '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>SnapMark test EPUB</dc:title><dc:language>en</dc:language>'
+                   '<dc:identifier id="id">snapmark-test-epub</dc:identifier></metadata>'
+                   f'<manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>{items}</manifest>'
+                   f'<spine toc="ncx">{spine}</spine></package>')
+        nav = ''.join(f'<navPoint id="n{i}" playOrder="{i + 1}"><navLabel><text>{t}</text></navLabel><content src="{f}"/></navPoint>'
+                      for i, (f, t, _) in enumerate(chapters))
+        z.writestr('OEBPS/toc.ncx', '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+                   f'<head><meta name="dtb:uid" content="snapmark-test-epub"/></head><docTitle><text>SnapMark test EPUB</text></docTitle><navMap>{nav}</navMap></ncx>')
+        for f, t, paras in chapters:
+            z.writestr(f'OEBPS/{f}', '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                       f'<head><title>{t}</title></head><body><h1>{t}</h1>{paras}</body></html>')
+
+
+def esc_xml(s):
+    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
 if __name__ == '__main__':
     pages = build()
     write_pdf(pages, os.path.join(HERE, 'SnapMark test.pdf'))
     layout = {'page_px': [1920, 2560], 'pages': [{k: v for k, v in p.items() if k != 'content'} for p in pages]}
     with open(os.path.join(HERE, 'layout.json'), 'w') as f:
         json.dump(layout, f, indent=1)
-    print('wrote SnapMark test.pdf and layout.json')
+    write_landscape(os.path.join(HERE, 'SnapMark test landscape.pdf'))
+    write_epub(os.path.join(HERE, 'SnapMark test.epub'))
+    print('wrote SnapMark test.pdf, layout.json, SnapMark test landscape.pdf and SnapMark test.epub')
