@@ -70,6 +70,8 @@ In a PDF or EPUB, tap **Snap region** and [drag a box](#choosing-a-region) over 
 
 **Whole page** on the same screen does a normal Snap page.
 
+**Supernote turned sideways?** Snap page and Snap region work in landscape orientation too, whether the document app shows the page at its normal size or zoomed to the width (after you turn a page). Draw the box on what you see; the note comes out upright, with your handwriting and underlines where they belong.
+
 ## Paste into the note you're working in
 
 Reading a PDF alongside a note of your own? Set **Where snaps go → Into the note I'm working in**. Then after **Snap region** (or a tap on the floating button):
@@ -218,6 +220,7 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 - **Pen taps on the floating button** over a page also write a dot there (see [where to keep it](#the-floating-capture-button)). In a PDF the safe spots aren't known yet.
 - **Margin mode** copies your strokes but not shapes from the page.
 - **Last page of a document:** the document app refuses that page to plugins, so SnapMark reads its handwriting through Notes. A region snap from it takes a few seconds longer, and with **Stay here** Notes opens briefly before you're taken back.
+- **Sideways, zoomed to the width:** the document app itself draws your highlights a line or two off the text in that view. Your snaps aren't affected: SnapMark places them from the page.
 - **Annotate screenshot** can't tell where a native screenshot came from, so those notes are named `Screenshot - <time>`.
 
 ## Report a problem

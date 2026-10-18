@@ -521,22 +521,37 @@ def sideways_box(box):
     return (round(120 + l * k), round(184 + t * k), round(120 + r * k), round(184 + b * k))
 
 
-def snap(page, region_box=None, doc=None, sideways=False):
+def zoom_to_next_page():
+    """Sideways, DOC's forward arrow (just right of the page counter) shows the next page zoomed to the
+    screen's width (R83); reopening the document shows it upright again."""
+    counter = next(((k, xy) for k, xy in ui_nodes().items() if re.fullmatch(r'\d+ / \d+', k)), None)
+    if not counter:
+        return False
+    x, y = counter[1]
+    tap((x + 120, y))
+    time.sleep(3)
+    return True
+
+
+def snap(page, region_box=None, doc=None, sideways=False, zoomed=False):
     """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None).
-    `sideways`: with the device turned sideways (`region_box` then in capture px; R83)."""
+    `sideways`: with the device turned sideways (`region_box` then in capture px; R83). `zoomed`:
+    sideways, page-forward to page + 1 shown zoomed to the width, and snap that."""
     if not sideways:
         return _snap(page, region_box, doc)
     try:
-        return _snap(page, sideways_box(region_box) if region_box else None, doc, True)
+        return _snap(page, sideways_box(region_box) if region_box else None, doc, True, zoomed)
     finally:
         turn(False)
 
 
-def _snap(page, region_box=None, doc=None, sideways=False):
+def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False):
     if not open_doc(page, doc):
         return [], None
     if sideways:
         turn(True)
+        if zoomed and not zoom_to_next_page():
+            return ['test: page counter not found (to page forward)'], None
     # A full log buffer makes logd drop the plugin host's lines first (it is uid 1000, the biggest
     # logger); clear it so this snap's lines survive.
     adb('logcat', '-c', check=False)
@@ -554,6 +569,8 @@ def _snap(page, region_box=None, doc=None, sideways=False):
             return snapmark_lines(stamp), None
         if sideways:
             turn(True)
+            if zoomed:
+                zoom_to_next_page()
         tap(bubble_center() or b)
         nodes = wait_ui('Whole page', 25)
     if nodes:
@@ -670,6 +687,34 @@ def cmd_run(args):
                     bl = next((l for l in log if 'line bottoms' in l), '')
                     got = [int(v) for v in re.findall(r'-?\d+', bl.split('line bottoms')[-1])] if bl else []
                     want = [round(lines[n]['bottom'] * 2560 / 1920) for n in HIGHLIGHTS[1]]
+                    ok = len(got) == len(want) and all(abs(g - w) <= 12 for g, w in zip(got, want))
+                    res.check(ok, 'highlights read in the sideways frame', f'line bottoms {got}, about {want}')
+                    res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
+            res.log = log
+            results.append(res)
+        # Zoomed to the width: page forward from page 1 shows page 2 zoomed; the region snap has to find
+        # that view (and its scroll) by matching the capture against the render.
+        lines2 = {l['n']: l for l in layout['pages'][1]['lines']}
+        z = 2560 / 1920
+        for box in (None, tuple(round(v * z) for v in (lines2[3]['left'] - 30, lines2[3]['top'] - 20, lines2[7]['right'] + 20, lines2[7]['bottom'] + 20))):
+            res = Result(f'Sideways, zoomed: {"region of " if box else ""}page 2')
+            log, path = snap(1, box, sideways=True, zoomed=True)
+            res.check(path, 'snap finished', path or 'no snap log line')
+            if box:
+                found = next((l for l in log if l.startswith('sideways screen: upright')), '')
+                res.check(found.endswith('-> zoomed'), 'view found: zoomed to the width', found)
+            if path:
+                made.append(path)
+                local = os.path.join(out_dir, f'sideways-zoomed-{"region-" if box else ""}p2.note')
+                adb('pull', path, local)
+                total, gray = render_note(local, local.replace('.note', '.png'))
+                res.check(total == 1, 'note has one page', f'{total} pages')
+                if box is None:
+                    check_page_snap(res, 2, None, log, gray, note_tags(local), layout, with_ink)
+                elif with_ink:
+                    bl = next((l for l in log if 'line bottoms' in l), '')
+                    got = [int(v) for v in re.findall(r'-?\d+', bl.split('line bottoms')[-1])] if bl else []
+                    want = [round(lines2[n]['bottom'] * z) for n in HIGHLIGHTS[2]]
                     ok = len(got) == len(want) and all(abs(g - w) <= 12 for g, w in zip(got, want))
                     res.check(ok, 'highlights read in the sideways frame', f'line bottoms {got}, about {want}')
                     res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
