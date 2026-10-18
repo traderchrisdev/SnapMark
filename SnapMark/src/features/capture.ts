@@ -136,6 +136,11 @@ export interface Pasted {
   path: string;
   width: number;
   height: number;
+  /**
+   * The handwriting that belongs on the picture, once its place `dst` on a note page of `noteSize` is
+   * known (NOTE is in front then, which reads any page's ink, R80). The caller of this recycles them.
+   */
+  ink?: (dst: Rect, noteSize: Size) => Promise<Element[]>;
 }
 
 /**
@@ -248,6 +253,17 @@ async function placeOnPage(
   }
   const elements = [await Sn.newPictureElement(image.path, plan.rect, target)];
   let text: Element | null = null;
+  let ink: Element[] = [];
+  if (image.ink) {
+    ink = await image.ink(plan.rect, size).catch(e => {
+      logError('paste: handwriting (pasting the picture without it)', e);
+      return [] as Element[];
+    });
+    for (const e of ink) {
+      e.pageNum = target;
+    }
+    log(`paste: ${ink.length} strokes onto the picture`);
+  }
   try {
     if (spec) {
       elements.push(await Sn.newLinkElement(linkUnder(spec, plan.rect, size), target));
@@ -259,17 +275,21 @@ async function placeOnPage(
         return null;
       });
     }
+    const extras = [...ink, ...(text ? [text] : [])];
     try {
-      await Sn.insertElements(notePath, target, text ? [...elements, text] : elements);
+      await Sn.insertElements(notePath, target, [elements[0], ...ink, ...elements.slice(1), ...(text ? [text] : [])]);
     } catch (e) {
-      if (!text) {
+      if (!extras.length) {
         throw e;
       }
-      logError('paste: insert with caption (pasting without it)', e);
+      logError(`paste: insert with ${ink.length} strokes${text ? ' and the caption' : ''} (pasting without them)`, e);
       await Sn.insertElements(notePath, target, elements);
+      if (ink.length) {
+        toast('Pasted, but your handwriting could not be added.', true);
+      }
     }
   } finally {
-    Sn.recycle(text ? [...elements, text] : elements);
+    Sn.recycle([...elements, ...ink, ...(text ? [text] : [])]);
   }
   await reloadAndShow(plan.newPage ? target : null);
   return { page: target, newPage: plan.newPage };

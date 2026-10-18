@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0 (2026-10-18)
+
+- **Pasted snaps keep your handwriting as ink.** With **Where snaps go → Into the note I'm working in**, a region from a PDF or EPUB is now cut from a clean render of the page, and your handwriting inside the box goes onto the pasted picture as real strokes you can erase or move; marker highlights become underlines under their line. It works on every page, last pages and landscape pages included. (Before, the ink was baked into the picture.)
+- For developers: the device test pastes regions of page 1 and the last page into a note and checks the strokes arrive (19 snaps).
+
 ## 0.13.3 (2026-10-18)
 
 - **Fixed: handwriting on landscape PDF pages landed in the wrong place** (a short line instead of an underline, words missing). The PDF app keeps a landscape page's ink in its zoomed view and renders the page as a landscape image; SnapMark now reads the ink in that frame and fits the image into the note, so Snap page, Snap region, margin mode and the inbox all place it right.

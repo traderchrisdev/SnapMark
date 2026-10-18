@@ -79,7 +79,7 @@ Reading a PDF alongside a note of your own? Set **Where snaps go → Into the no
 
 Things to know:
 - Open your note in Notes first. If Notes has no note open, SnapMark asks you to open one rather than guessing.
-- Your handwriting and highlights inside the box are **part of the picture**, not separate ink.
+- From a PDF or EPUB, your handwriting inside the box comes along as **real ink** on the picture (erase or move it), and marker highlights become underlines under their line. From other apps, it's part of the picture.
 - **Whole screen** from the floating button pastes the whole screen. In a PDF or EPUB, **Whole page** and Snap page still make a note of their own, as do the screenshot buttons.
 - **After a snap → Stay here** pastes and brings you back to the app or document you were in.
 

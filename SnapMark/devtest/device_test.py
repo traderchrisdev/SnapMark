@@ -397,6 +397,28 @@ def cmd_setup(_):
           'Then run: python3 devtest/device_test.py save-ink')
 
 
+def stroke_bytes(path):
+    """Per page (1-based): the size of its stroke data block in a .note/.mark file (0 if none)."""
+    b = open(path, 'rb').read()
+    fa = int.from_bytes(b[-4:], 'little')
+    n = int.from_bytes(b[fa:fa + 4], 'little')
+    footer = b[fa + 4:fa + 4 + n].decode('latin1')
+    out = {}
+    for k, addr in re.findall(r'<PAGE(\d+):(\d+)>', footer):
+        a = int(addr)
+        m = int.from_bytes(b[a:a + 4], 'little')
+        tp = re.search(r'<TOTALPATH:(\d+)>', b[a + 4:a + 4 + m].decode('latin1'))
+        t = int(tp.group(1)) if tp else 0
+        out[int(k)] = int.from_bytes(b[t:t + 4], 'little') if t else 0
+    return out
+
+
+def open_note(path):
+    sh('am start -a android.intent.action.VIEW -n com.ratta.supernote.note/.view.NoteInsidePagesActivity '
+       f'--es file_path {shlex.quote(path)}')
+    time.sleep(3)
+
+
 def cmd_setup_extra(_):
     for key, name in EXTRA_DOCS.items():
         adb('push', os.path.join(HERE, name), extra_device(key))
@@ -676,6 +698,36 @@ def cmd_run(args):
             res.log = log
             results.append(res)
 
+    if not args.pages and not args.no_paste and made:
+        # Into the note I'm working in: paste regions of page 1 and the last page into a note made above;
+        # the handwriting must arrive as strokes on the pasted picture (0.14).
+        target = next((p for p in made if p.endswith('.note') and ' - p1 - ' in p and '/Screenshots/' not in p), made[0])
+        snapmark_settings("Into the note I'm working in")
+        restart_host()
+        try:
+            lines = {l['n']: l for l in layout['pages'][0]['lines']}
+            for page, box in ((1, (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
+                              (LAST_PAGE, (120, 240, 1800, 1100))):
+                res = Result(f'Paste into a note: region of page {page}')
+                before_local = os.path.join(out_dir, f'paste-target-before-p{page}.note')
+                adb('pull', target, before_local)
+                before = stroke_bytes(before_local)
+                open_note(target)
+                log, _ = snap(page, box)
+                done = next((l for l in log if 'pasted into' in l), '')
+                res.check(done, 'pasted', done[-140:] or 'no "pasted into" line')
+                after_local = os.path.join(out_dir, f'paste-target-after-p{page}.note')
+                adb('pull', target, after_local)
+                after = stroke_bytes(after_local)
+                grew = [k for k in after if after[k] > before.get(k, 0)]
+                res.check(grew if with_ink else True, 'handwriting added as strokes', f'stroke data before {before}, after {after}')
+                render_note(after_local, after_local.replace('.note', '.png'), (grew or [1])[-1] - 1)
+                res.log = log
+                results.append(res)
+        finally:
+            snapmark_settings('A new note each')
+            restart_host()
+
     inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
     if not args.pages and not args.no_inbox:
         if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
@@ -750,6 +802,7 @@ def main():
     r.add_argument('--no-margin', action='store_true', help='skip the margin-mode snaps (they switch the setting to 75%% and back)')
     r.add_argument('--no-inbox', action='store_true', help='skip the Snaps inbox snaps (only run when there is no inbox yet)')
     r.add_argument('--no-extra', action='store_true', help='skip the landscape PDF and EPUB snaps')
+    r.add_argument('--no-paste', action='store_true', help='skip the "Into the note I\'m working in" pastes')
     r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
     args = p.parse_args()
     {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)

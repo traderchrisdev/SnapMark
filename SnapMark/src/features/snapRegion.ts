@@ -63,11 +63,6 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     t.mark('capture');
   }
 
-  if (settings.destination === 'current') {
-    await pasteRegion(settings, { front, raw, shot }, { docPath, page }, out, pluginDir, t);
-    return;
-  }
-
   // Started now, used after the user has drawn the box.
   const rendering = Sn.renderDocPage(page, render, pageSize, settings.keepHighlights).then(
     () => true,
@@ -76,6 +71,11 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
       return false;
     },
   );
+  if (settings.destination === 'current') {
+    await pasteRegion(settings, { front, raw, shot }, { docPath, page }, out, render, rendering, pageSize, pluginDir, t);
+    return;
+  }
+
   // The ink, read in DOC while you draw the box. On a document's last page DOC refuses it (R80): then it
   // is read once the new note is open in Notes (Delivery.lateInk).
   const lastPage = await isLastPage(page);
@@ -161,22 +161,38 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
 }
 
 /**
- * "Into the note I'm working in": the box is cut from the screen capture, so your ink and highlights
- * come along flattened into the picture (a picture can't hold strokes).
+ * "Into the note I'm working in": the box is cut from a clean render of the page, and your handwriting
+ * inside it goes onto the pasted picture as real strokes, read once NOTE is in front (any page,
+ * R80) and placed where the picture lands. Without a render the box is cut from the screen capture,
+ * with the ink flattened into the picture.
  */
-async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out: string, pluginDir: string, t: StepTimer): Promise<void> {
+async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out: string, render: string, rendering: Promise<boolean>, pageSize: Size, pluginDir: string, t: StepTimer): Promise<void> {
   let choice: RegionChoice = null;
   let pasted: Pasted | null = null;
   try {
     choice = await askForRegion({ path: from.raw, width: from.shot.width, height: from.shot.height }, 'Whole page');
     t.mark('region');
     if (choice && choice !== 'whole') {
-      pasted = await cutRegion(from.raw, out, choice);
+      const box = choice;
+      if (await rendering) {
+        const crop = captureToPage(box, from.shot, pageSize);
+        const frames = await docFramesOf(doc.docPath, doc.page, pageSize);
+        await normalizeRender(render, pageSize, frames);
+        pasted = await cutRegion(render, out, mapRect(crop, frames.viewToRender));
+        if (settings.includeHandwriting) {
+          const inkCrop = mapRect(crop, frames.viewToInk);
+          pasted.ink = async (dst, noteSize) =>
+            regionInk(await readHandwriting(doc.docPath, doc.page, settings.highlightStyle), render, inkCrop, dst, noteSize, frames);
+        }
+      } else {
+        pasted = await cutRegion(from.raw, out, box);
+      }
     }
   } finally {
     await closeRegionScreen('snap region', choice);
   }
   if (!pasted) {
+    await rendering;
     await removeCaptures(pluginDir);
     if (choice === 'whole') {
       await snapPage(settings);

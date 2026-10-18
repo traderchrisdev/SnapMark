@@ -102,7 +102,7 @@ export function SettingsScreen() {
         label="Where snaps go"
         hint={
           settings.destination === 'current'
-            ? 'Region snaps are pasted as a picture onto the page of the note open in Notes (your ink is flattened into it). Page snaps and screenshots still get a note each.'
+            ? 'Region snaps are pasted as a picture onto the page of the note open in Notes, with your handwriting from a PDF as real ink. Page snaps and screenshots still get a note each.'
             : `Inbox: every snap becomes the next page of Note/${cleanFolder ?? '…'}/Snaps inbox.note`
         }
       >
