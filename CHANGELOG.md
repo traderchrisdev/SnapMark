@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.3 (2026-10-18)
+
+- **Handwriting and highlights land in the right place with a Nomad turned sideways.** 0.14.2 cut the right part of the page but shrank the ink towards the top-left, because the Nomad's document app reports it differently from the Manta's when sideways. SnapMark now reads it through Notes in that case, which reports it the same way on every device.
+- **Underlines on one line line up.** Highlighting a line in several strokes gave underlines at two slightly different heights (lower under words with descenders); they now share one height.
+
 ## 0.14.2 (2026-10-18)
 
 Fixes for what a Nomad user found with the device turned sideways (landscape orientation).

@@ -1,3 +1,4 @@
+import { alignSameLine } from '../src/core/highlights';
 import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
 import { fromEmr, toEmr } from '../src/core/emr';
 import { backlinkSpec, backlinkSpecTop, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder, linkZone, stripShrink } from '../src/core/backlink';
@@ -609,5 +610,14 @@ describe('frames on a sideways screen (R83)', () => {
     expect(sideways.x * 0.75).toBeCloseTo(upright.x, -1);
     expect(sideways.y * 0.75).toBeCloseTo(upright.y, -1);
     expect(() => fromEmr({ x: 1, y: 1 }, { width: 1872, height: 2495 })).not.toThrow();
+  });
+});
+
+describe('underlines on one line (R83)', () => {
+  it('share the lowest bottom; other lines and missing ones stay', () => {
+    // A Nomad page: four strokes on one line (with and without descenders), then two more lines.
+    expect(alignSameLine([590, 591, 587, 587, 616, 640], 8)).toEqual([591, 591, 591, 591, 616, 640]);
+    expect(alignSameLine([655, -1, 988, 660], 8)).toEqual([660, -1, 988, 660]);
+    expect(alignSameLine([], 8)).toEqual([]);
   });
 });

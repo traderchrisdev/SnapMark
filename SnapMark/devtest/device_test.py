@@ -664,8 +664,8 @@ def cmd_run(args):
             results.append(res)
 
     if not args.pages and not args.no_sideways:
-        # The device turned sideways (R83): DOC keeps the ink in the page zoomed to the screen's width,
-        # and shows the page upright from the left. The notes must come out as they do upright.
+        # The device turned sideways (R83): DOC shows the page upright from the left (or zoomed, below);
+        # SnapMark reads the ink in Notes. The notes must come out as they do upright.
         lines = {l['n']: l for l in layout['pages'][0]['lines']}
         for page, box in ((1, None),
                           (1, (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
@@ -683,12 +683,13 @@ def cmd_run(args):
                 if box is None:
                     check_page_snap(res, page, None, log, gray, note_tags(local), layout, with_ink)
                 elif with_ink:
-                    # Read in DOC once it reports the ink sideways: the lines' bottoms in the zoomed frame.
+                    # Read in Notes, which reports the ink upright: the lines' bottoms on the upright page.
+                    res.check(any('sideways screen (R83); reading the ink once Notes' in l for l in log), 'ink read in Notes', '')
                     bl = next((l for l in log if 'line bottoms' in l), '')
                     got = [int(v) for v in re.findall(r'-?\d+', bl.split('line bottoms')[-1])] if bl else []
-                    want = [round(lines[n]['bottom'] * 2560 / 1920) for n in HIGHLIGHTS[1]]
-                    ok = len(got) == len(want) and all(abs(g - w) <= 12 for g, w in zip(got, want))
-                    res.check(ok, 'highlights read in the sideways frame', f'line bottoms {got}, about {want}')
+                    want = [lines[n]['bottom'] for n in HIGHLIGHTS[1]]
+                    ok = len(got) == len(want) and all(abs(g - w) <= 10 for g, w in zip(got, want))
+                    res.check(ok, 'highlights under their lines', f'line bottoms {got}, about {want}')
                     res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
             res.log = log
             results.append(res)
@@ -714,9 +715,9 @@ def cmd_run(args):
                 elif with_ink:
                     bl = next((l for l in log if 'line bottoms' in l), '')
                     got = [int(v) for v in re.findall(r'-?\d+', bl.split('line bottoms')[-1])] if bl else []
-                    want = [round(lines2[n]['bottom'] * z) for n in HIGHLIGHTS[2]]
-                    ok = len(got) == len(want) and all(abs(g - w) <= 12 for g, w in zip(got, want))
-                    res.check(ok, 'highlights read in the sideways frame', f'line bottoms {got}, about {want}')
+                    want = [lines2[n]['bottom'] for n in HIGHLIGHTS[2]]
+                    ok = len(got) == len(want) and all(abs(g - w) <= 10 for g, w in zip(got, want))
+                    res.check(ok, 'highlights under their lines', f'line bottoms {got}, about {want}')
                     res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
             res.log = log
             results.append(res)

@@ -95,3 +95,37 @@ export function underlinePoints(markerPoints: ReadonlyArray<Point>, markerThickn
   const steps = Math.max(1, Math.ceil((right - left) / STEP_PX));
   return Array.from({ length: steps + 1 }, (_, i) => ({ x: Math.round(left + ((right - left) * i) / steps), y }));
 }
+
+/**
+ * Line bottoms closer than this (render px) are the same text line: one marker stretch has
+ * descenders and the next has none, a few px apart. Lines are 20+ px apart even on a Nomad.
+ */
+export const SAME_LINE_PX = 8;
+
+/**
+ * Underlines on one text line at one height (R83): every bottom within `tolerance` of another
+ * (chained) becomes the lowest of them, so a line underlined in several strokes doesn't step where a
+ * stretch without descenders begins. -1 (no line found) stays.
+ */
+export function alignSameLine(bottoms: ReadonlyArray<number>, tolerance: number): number[] {
+  const order = bottoms.map((b, i) => [b, i] as const).filter(([b]) => b >= 0).sort((a, b) => a[0] - b[0]);
+  const out = [...bottoms];
+  let group: number[] = [];
+  const flush = () => {
+    const low = Math.max(...group.map(i => bottoms[i]));
+    for (const i of group) {
+      out[i] = low;
+    }
+    group = [];
+  };
+  for (const [b, i] of order) {
+    if (group.length && b - bottoms[group[group.length - 1]] > tolerance) {
+      flush();
+    }
+    group.push(i);
+  }
+  if (group.length) {
+    flush();
+  }
+  return out;
+}

@@ -10,13 +10,12 @@
 
 import type { Element } from 'sn-plugin-lib';
 import type { Rect, Size } from '../core/backlink';
-import { LINE_BOTTOM_SEARCH_PX, UNDERLINE_PRESSURE } from '../core/highlights';
+import { alignSameLine, LINE_BOTTOM_SEARCH_PX, SAME_LINE_PX, UNDERLINE_PRESSURE } from '../core/highlights';
 import { inNote, scalePoints, scaleThicknessBy, type DocFrames, type MarginLayout } from '../core/margin';
 import { isDocumentPath, tmpDir } from '../core/paths';
 import { captureToPage, mapToRegion, mostlyInside, regionScale } from '../core/region';
 import { fitInsetsDp } from '../core/fit';
 import type { Settings } from '../core/settings';
-import type { HighlightStyle } from '../core/highlights';
 import { StepTimer } from '../core/timer';
 import { log, logError } from '../platform/log';
 import { Native, type Capture, type FrontTask } from '../platform/native';
@@ -26,7 +25,7 @@ import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import type { DocPage } from './annotateScreenshot';
 import { askForRegion, type RegionChoice } from './region';
-import { docFramesOf, documentPageSize, isLastPage, markerInfos, normalizeRender, readHandwriting, scrolledView, snapPage, underlinesFrom, type Handwriting } from './snapPage';
+import { docFramesOf, documentPageSize, isLastPage, isSideways, markerInfos, normalizeRender, readHandwriting, scrolledView, snapPage, underlinesFrom, type Handwriting } from './snapPage';
 
 /** Lets the plugin menu that held the button close before the screen is captured. */
 const MENU_CLOSE_MS = 300;
@@ -36,46 +35,6 @@ export interface Captured {
   front: FrontTask;
   raw: string;
   shot: Capture;
-}
-
-/** How often, and how long, to read the ink again until DOC reports it sideways (R83). */
-const SIDEWAYS_POLL_MS = 250;
-const SIDEWAYS_SAME_MS = 1500;
-const SIDEWAYS_GIVE_UP_MS = 3000;
-
-/** The first stroke point's raw EMR x (down the page), to tell which frame DOC reported the ink in. */
-async function firstRawX(read: Handwriting): Promise<number | null> {
-  const e = [...read.strokes, ...read.markers].find(el => el.stroke);
-  if (!e || !e.stroke || (await e.stroke.points.size()) < 1) {
-    return null;
-  }
-  const [p] = (await e.stroke.points.getRange(0, 1)) as { x: number; y: number }[];
-  return p ? p.x : null;
-}
-
-/**
- * The ink on a sideways screen, read once DOC is back in front (R83). Just after the region screen
- * closes DOC still reports it upright for a few hundred ms; sideways, the same point's raw x is larger
- * by the ink frame's zoom. `early` is that x as read while the region screen was up: read until the
- * zoom shows, or, if it was sideways already, until the reads have agreed for a while.
- */
-async function readSideways(docPath: string, page: number, style: HighlightStyle, early: number | null, frames: DocFrames): Promise<Handwriting> {
-  const zoom = frames.upright ? frames.upright.inkToRender.scale / frames.inkToRender.scale : 1;
-  const started = Date.now();
-  for (;;) {
-    const read = await readHandwriting(docPath, page, style);
-    const x = await firstRawX(read);
-    const waited = Date.now() - started;
-    const ratio = early && x !== null ? x / early : null;
-    const switched = ratio !== null && Math.abs(ratio - zoom) < 0.03 * zoom;
-    const same = ratio === null || Math.abs(ratio - 1) < 0.03;
-    if (switched || (same && waited >= SIDEWAYS_SAME_MS) || waited >= SIDEWAYS_GIVE_UP_MS) {
-      log(`snap region: sideways ink read after ${waited} ms (${switched ? 'turned sideways' : ratio === null ? 'nothing to compare' : same ? 'already sideways' : `ratio ${ratio.toFixed(3)}`})`);
-      return read;
-    }
-    Sn.recycle([...read.strokes, ...read.markers]);
-    await Native.sleep(SIDEWAYS_POLL_MS);
-  }
 }
 
 export async function snapRegion(settings: Settings, from?: Captured): Promise<void> {
@@ -117,12 +76,14 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     return;
   }
 
-  // The ink, read in DOC while you draw the box. On a document's last page DOC refuses it (R80): then it
-  // is read once the new note is open in Notes (Delivery.lateInk).
+  // The ink, read in DOC while you draw the box. On a document's last page DOC refuses it (R80), and on
+  // a sideways screen it reports it in a frame that differs by device and moment (R83): then it is read
+  // once the new note is open in Notes (Delivery.lateInk), which always reports it upright.
   const lastPage = await isLastPage(page);
+  const sideways = await isSideways();
   const reading: Promise<Handwriting | null> = !settings.includeHandwriting
     ? Promise.resolve({ strokes: [], markers: [] })
-    : lastPage
+    : lastPage || sideways
       ? Promise.resolve(null)
       : readHandwriting(docPath, page, settings.highlightStyle).catch(e => {
           if (errorCode(e) === CODE_PAGE_NOT_FOUND) {
@@ -135,9 +96,6 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   let choice: RegionChoice = null;
   let strokes: Element[] = [];
   let lateInk: (() => Promise<Element[]>) | undefined;
-  // On a sideways screen DOC may report the ink in the upright frame while the region screen is up
-  // (R83): there it is read again once DOC is back in front.
-  let inkAfterClose: (() => Promise<Element[]>) | null = null;
   let isPortrait = pageSize.height >= pageSize.width;
   try {
     choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole page');
@@ -160,16 +118,10 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
         if (frames.landscape || frames.rotated) {
           log(`snap region: ${frames.rotated ? 'sideways screen' : 'landscape page'}; box ${JSON.stringify(crop)} -> render ${JSON.stringify(renderCrop)} -> ${JSON.stringify(dst)}`);
         }
-        if (read && frames.rotated) {
-          const early = await firstRawX(read);
-          Sn.recycle([...read.strokes, ...read.markers]);
-          const viewFrames = frames;
-          inkAfterClose = async () =>
-            regionInk(await readSideways(docPath, page, settings.highlightStyle, early, viewFrames), render, inkCrop, dst, pageSize, viewFrames);
-        } else if (read) {
+        if (read) {
           strokes = await regionInk(read, render, inkCrop, dst, pageSize, frames);
         } else {
-          log('snap region: last page of the document; reading the ink once Notes has the note (R80)');
+          log(`snap region: ${sideways ? 'sideways screen (R83)' : 'last page of the document (R80)'}; reading the ink once Notes has the note`);
           // NOTE reads it upright even on a sideways screen (R83).
           const noteFrames = inNote(frames);
           const noteCrop = mapRect(crop, noteFrames.viewToInk);
@@ -187,13 +139,6 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     }
   } finally {
     await closeRegionScreen('snap region', choice);
-  }
-  if (inkAfterClose) {
-    strokes = await inkAfterClose().catch(e => {
-      logError('snap region: read ink on the sideways screen (snapping without it)', e);
-      return [];
-    });
-    t.mark(`ink after close (${strokes.length} strokes)`);
   }
 
   if (choice === null || choice === 'whole') {
@@ -290,7 +235,9 @@ async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rec
           return null;
         })
       : null;
-  const bottoms = report ? report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - inkFrame.rect.top) / inkFrame.scale))) : null;
+  const bottoms = report
+    ? alignSameLine(report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - inkFrame.rect.top) / inkFrame.scale))), SAME_LINE_PX / inkFrame.scale)
+    : null;
   const handwriting = [...(await underlinesFrom(infos, frames.inkSize, bottoms)), ...read.strokes];
   if (infos.length) {
     log(`snap region: ${infos.length} marker(s); line bottoms ${JSON.stringify(bottoms)}`);

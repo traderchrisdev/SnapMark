@@ -15,6 +15,8 @@ import {
   isLineHighlight,
   LINE_BOTTOM_SEARCH_PX,
   LINE_HIGHLIGHT_SLACK,
+  SAME_LINE_PX,
+  alignSameLine,
   markerBand,
   PEN_MARKER,
   PEN_TECHNICAL,
@@ -158,9 +160,11 @@ export async function snapPage(settings: Settings): Promise<void> {
   // The ink, read now in DOC; on a document's last page DOC refuses (R80), so NOTE reads it later.
   let handwriting: Element[] | null = [];
   if (settings.includeHandwriting) {
-    if (lastPage) {
+    if (lastPage || frames.rotated) {
+      // DOC refuses the last page (R80); sideways it reports the ink in a frame that differs by device
+      // and moment (R83). NOTE reads it right, upright, in both cases.
       handwriting = null;
-      log('snap page: last page of the document; reading the ink once Notes is in front (R80)');
+      log(`snap page: ${lastPage ? 'last page of the document (R80)' : 'sideways screen (R83)'}; reading the ink once Notes is in front`);
     } else {
       try {
         handwriting = await buildInk(docPath, page, inkSize, render, inkLayout, settings.highlightStyle);
@@ -453,7 +457,9 @@ async function buildInk(docPath: string, page: number, pageSize: Size, render: s
       return { left: l.x, right: r.x, y: l.y, maxDy: Math.round(LINE_BOTTOM_SEARCH_PX * layout.scale) };
     });
     const report = Native.available && bands.length ? await Native.inspectRender(render, bands, []).catch(() => null) : null;
-    const bottoms = report ? report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - layout.rect.top) / layout.scale))) : null;
+    const bottoms = report
+      ? alignSameLine(report.lineBottoms.map(y => (y < 0 ? -1 : Math.round((y - layout.rect.top) / layout.scale))), SAME_LINE_PX / layout.scale)
+      : null;
     const underlines = await underlinesFrom(infos, pageSize, bottoms);
     if (infos.length) {
       log(`snap page: ${infos.length} marker(s) -> ${underlines.length} underline(s); line bottoms ${JSON.stringify(bottoms)}; thickness ${infos.map(i => i.thickness).join(',')}`);
@@ -474,9 +480,8 @@ export async function docFramesOf(docPath: string, page: number, pageSize: Size)
     logError('PDF page size (assuming a portrait page)', e);
     return null;
   }) : null;
-  const rotation = Native.available ? await Native.displayRotation().catch(() => 0) : 0;
   // An EPUB keeps its upright layout on a sideways screen: a page the size of the screen (R83).
-  const frames = docFrames(pdf, pageSize, rotation % 2 === 1);
+  const frames = docFrames(pdf, pageSize, await isSideways());
   if (frames.rotated) {
     log(`page ${page + 1}${pdf ? ` is ${pdf.width}x${pdf.height} pt,` : ''} shown on a sideways screen; ink frame ${frames.inkSize.width}x${frames.inkSize.height}, to the render x${frames.inkToRender.scale.toFixed(4)} +${frames.inkToRender.rect.left},${frames.inkToRender.rect.top}`);
   } else if (frames.landscape && pdf) {
@@ -533,6 +538,11 @@ export async function scrolledView(frames: DocFrames, capture: string, render: s
     logError('sideways screen: finding the view (assuming upright, at the top)', e);
     return frames;
   }
+}
+
+/** True when the device is turned sideways (R83; React's screen size flips mid-snap, the display's doesn't). */
+export async function isSideways(): Promise<boolean> {
+  return Native.available ? (await Native.displayRotation().catch(() => 0)) % 2 === 1 : false;
 }
 
 /** True when `page` (0-based) is the open document's last page, which DOC refuses some calls for (R80). */
