@@ -14,6 +14,7 @@ import {
   COLOR_DARK_GRAY,
   isLineHighlight,
   LINE_BOTTOM_SEARCH_PX,
+  LINE_HIGHLIGHT_SLACK,
   markerBand,
   PEN_MARKER,
   PEN_TECHNICAL,
@@ -517,7 +518,7 @@ export async function underlinesFrom(infos: ReadonlyArray<MarkerInfo>, pageSize:
   for (const [i, info] of infos.entries()) {
     const bottom = lineBottoms?.[i] ?? -1;
     const points =
-      bottom >= 0 && isLineHighlight(info.points, info.thickness)
+      bottom >= 0 && isLineHighlight(info.points, info.thickness, LINE_HIGHLIGHT_SLACK)
         ? underlineUnderText(info.points, bottom, pageSize.height)
         : underlinePoints(info.points, info.thickness, pageSize.height);
     try {

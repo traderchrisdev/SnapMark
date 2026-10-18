@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.1 (2026-10-18)
+
+- **A wobbly highlight still becomes an underline.** A hand-drawn marker stroke that goes up and down a little (or back and forth) over one line was taken for a mark across several lines and copied as-is. When the page shows a text line under it, SnapMark now accepts up to about twice the marker's height as one line and draws the underline under that line; a mark that really spans two lines is still copied as drawn.
+
 ## 0.14.0 (2026-10-18)
 
 - **Pasted snaps keep your handwriting as ink.** With **Where snaps go → Into the note I'm working in**, a region from a PDF or EPUB is now cut from a clean render of the page, and your handwriting inside the box goes onto the pasted picture as real strokes you can erase or move; marker highlights become underlines under their line. It works on every page, last pages and landscape pages included. (Before, the ink was baked into the picture.)

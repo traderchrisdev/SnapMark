@@ -557,3 +557,13 @@ describe('frames of a landscape page (R81)', () => {
     expect(back.y).toBeCloseTo(27051, 6);
   });
 });
+
+describe('wobbly highlights (0.14)', () => {
+  it('still count as one line when the text line was found, up to 2.2 band heights tall', () => {
+    const zigzag = [{ x: 200, y: 520 }, { x: 600, y: 590 }, { x: 1000, y: 525 }, { x: 1400, y: 592 }]; // 72 px tall
+    expect(isLineHighlight(zigzag, 3800)).toBe(false);
+    expect(isLineHighlight(zigzag, 3800, 2.2)).toBe(true);
+    const twoLines = [{ x: 200, y: 520 }, { x: 1400, y: 640 }]; // 120 px: across two lines
+    expect(isLineHighlight(twoLines, 3800, 2.2)).toBe(false);
+  });
+});

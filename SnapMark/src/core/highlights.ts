@@ -42,14 +42,21 @@ export function markerBand(markerPoints: ReadonlyArray<Point>): { left: number; 
   return { left: Math.round(left), right: Math.round(right), y: Math.round(sumY / markerPoints.length) };
 }
 
-/** True when the marker stays within one band height vertically: a single highlighted line. */
-export function isLineHighlight(markerPoints: ReadonlyArray<Point>, markerThickness: number): boolean {
+/**
+ * When the render shows a text line at the marker's centre, a marker up to this many band heights
+ * tall still highlights just that line (a hand-drawn stroke wobbles or goes back and forth); one
+ * across two lines is taller than a line pitch plus a band.
+ */
+export const LINE_HIGHLIGHT_SLACK = 2.2;
+
+/** True when the marker stays within `slack` band heights vertically: a single highlighted line. */
+export function isLineHighlight(markerPoints: ReadonlyArray<Point>, markerThickness: number, slack = 1): boolean {
   let [top, bottom] = [Infinity, -Infinity];
   for (const p of markerPoints) {
     top = Math.min(top, p.y);
     bottom = Math.max(bottom, p.y);
   }
-  return markerPoints.length >= 2 && bottom - top <= markerThickness / STROKE_UNITS_PER_PX;
+  return markerPoints.length >= 2 && bottom - top <= (slack * markerThickness) / STROKE_UNITS_PER_PX;
 }
 
 /**
