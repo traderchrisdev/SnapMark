@@ -69,6 +69,10 @@ export function isIdentity(layout: MarginLayout): boolean {
 export interface DocFrames {
   /** The page is wider than the screen's shape (a landscape PDF page). */
   landscape: boolean;
+  /** The device is turned sideways: DOC shows the page zoomed to the screen's width and scrolls it (R83). */
+  rotated: boolean;
+  /** The screen as DOC shows it (sideways when rotated). The box is drawn in it. */
+  view: Size;
   /** The frame the page's ink is kept in: the screen, or the page zoomed to the screen height (wider). */
   inkSize: Size;
   /** Ink px -> render px (the render shows the page fitted to the screen and centred). */
@@ -77,6 +81,8 @@ export interface DocFrames {
   viewToInk: MarginLayout;
   /** Screen px -> render px. */
   viewToRender: MarginLayout;
+  /** On a sideways screen: the frames NOTE reads the document's ink in, which stay upright (R83). */
+  upright?: DocFrames;
 }
 
 function affine(scale: number, left: number, top: number, size: Size): MarginLayout {
@@ -91,17 +97,81 @@ function affine(scale: number, left: number, top: number, size: Size): MarginLay
  * narrower is the same in all three frames. A wider one is shown, and its ink kept, zoomed to the
  * screen height from the left edge (a frame wider than the screen), and rendered fitted to the width
  * and centred (R81).
+ *
+ * `rotated`: the device is turned sideways (R83). DOC then shows the page either as it would upright
+ * (the render's frame, from the left) or zoomed to the sideways screen's width, scrolled up and down;
+ * either way it keeps the ink in the page zoomed to that width (as wide as the screen's long side).
+ * The view starts upright at scroll 0; `viewedAs` sets how it is really shown.
  */
-export function docFrames(pagePt: Size | null, screen: Size): DocFrames {
-  const id = affine(1, 0, 0, screen);
-  if (!pagePt || pagePt.width <= 0 || pagePt.height <= 0 || pagePt.width * screen.height <= screen.width * pagePt.height) {
-    return { landscape: false, inkSize: screen, inkToRender: id, viewToInk: id, viewToRender: id };
+export function docFrames(pagePt: Size | null, screen: Size, rotated = false): DocFrames {
+  const known = !!pagePt && pagePt.width > 0 && pagePt.height > 0;
+  const page = known && pagePt ? pagePt : screen;
+  const landscape = known && page.width * screen.height > screen.width * page.height;
+  const sR = Math.min(screen.width / page.width, screen.height / page.height);
+  const offRx = (screen.width - page.width * sR) / 2;
+  const offRy = (screen.height - page.height * sR) / 2;
+  if (rotated) {
+    const view = { width: screen.height, height: screen.width };
+    const z = view.width / page.width;
+    const inkSize = { width: view.width, height: Math.round(page.height * z) };
+    const frames = { landscape, rotated, view, inkSize, inkToRender: affine(sR / z, offRx, offRy, inkSize), upright: docFrames(pagePt, screen) };
+    return viewedAs({ ...frames, viewToInk: frames.inkToRender, viewToRender: frames.inkToRender }, { scale: 1, left: 0, top: 0 });
   }
-  const sV = screen.height / pagePt.height;
-  const inkSize = { width: Math.round(pagePt.width * sV), height: screen.height };
-  const sR = Math.min(screen.width / pagePt.width, screen.height / pagePt.height);
-  const offRx = (screen.width - pagePt.width * sR) / 2;
-  const offRy = (screen.height - pagePt.height * sR) / 2;
+  const id = affine(1, 0, 0, screen);
+  if (!landscape) {
+    return { landscape, rotated, view: screen, inkSize: screen, inkToRender: id, viewToInk: id, viewToRender: id };
+  }
+  const sV = screen.height / page.height;
+  const inkSize = { width: Math.round(page.width * sV), height: screen.height };
   const viewToRender = affine(sR / sV, offRx, offRy, inkSize);
-  return { landscape: true, inkSize, inkToRender: viewToRender, viewToInk: affine(1, 0, 0, screen), viewToRender };
+  return { landscape, rotated, view: screen, inkSize, inkToRender: viewToRender, viewToInk: affine(1, 0, 0, screen), viewToRender };
+}
+
+/** Screen px -> render px for a sideways screen (R83): render = screen * scale + (left, top). */
+export interface ViewMapping {
+  scale: number;
+  left: number;
+  top: number;
+}
+
+/** How DOC shows the page on a sideways screen: as it would upright, scrolled `scroll` screen px. */
+export function uprightView(scroll: number): ViewMapping {
+  return { scale: 1, left: 0, top: scroll };
+}
+
+/** How DOC shows the page on a sideways screen: zoomed to the screen's width, scrolled `scroll` screen px. */
+export function widthView(frames: DocFrames, scroll: number): ViewMapping {
+  const r = frames.inkToRender;
+  return { scale: r.scale, left: r.rect.left, top: r.rect.top + scroll * r.scale };
+}
+
+/** `frames` with the view (the sideways screen, R83) mapped onto the render by `m`. */
+export function viewedAs(frames: DocFrames, m: ViewMapping): DocFrames {
+  const r = frames.inkToRender;
+  const q = 1 / r.scale; // render px -> ink px
+  return {
+    ...frames,
+    viewToRender: affine(m.scale, m.left, m.top, frames.view),
+    viewToInk: affine(m.scale * q, (m.left - r.rect.left) * q, (m.top - r.rect.top) * q, frames.view),
+  };
+}
+
+/**
+ * The frames for ink read with NOTE in front (a document's last page, R80, or a paste): NOTE reports
+ * it upright even on a sideways screen (R83), so only the view stays sideways.
+ */
+export function inNote(frames: DocFrames): DocFrames {
+  const u = frames.upright;
+  if (!frames.rotated || !u) {
+    return frames;
+  }
+  const r = u.inkToRender;
+  const m = frames.viewToRender;
+  const q = 1 / r.scale;
+  return {
+    ...frames,
+    inkSize: u.inkSize,
+    inkToRender: r,
+    viewToInk: affine(m.scale * q, (m.rect.left - r.rect.left) * q, (m.rect.top - r.rect.top) * q, frames.view),
+  };
 }

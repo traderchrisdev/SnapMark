@@ -541,10 +541,20 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     /** Rows above the band centre to look at when the centre itself is blank. */
     private static final int LOOK_UP = 8;
 
+    /**
+     * Below a line's dark core, its descenders end in grey anti-aliased tips; counting those keeps the
+     * underline off them on small text (a Nomad, R83).
+     */
+    private static final int TAIL = 200;
+
     private static boolean rowHasText(Bitmap bm, int[] row, int l, int r, int y) {
+        return rowHasText(bm, row, l, r, y, DARK);
+    }
+
+    private static boolean rowHasText(Bitmap bm, int[] row, int l, int r, int y, int threshold) {
         bm.getPixels(row, 0, r - l + 1, l, y, r - l + 1, 1);
         int dark = 0;
-        for (int c : row) if (luma(c) < DARK && ++dark >= 2) return true;
+        for (int c : row) if (luma(c) < threshold && ++dark >= 2) return true;
         return false;
     }
 
@@ -560,7 +570,7 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         if (start < 0) return -1;
         int bottom = start, blank = 0;
         for (int yy = start + 1; yy < h && yy <= y + maxDy; yy++) {
-            if (rowHasText(bm, row, l, r, yy)) { bottom = yy; blank = 0; }
+            if (rowHasText(bm, row, l, r, yy, TAIL)) { bottom = yy; blank = 0; }
             else if (++blank >= LINE_GAP) break;
         }
         return bottom;
@@ -589,6 +599,77 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
                 promise.reject("E_LETTERBOX", e.toString(), e);
             }
         }).start();
+    }
+
+    /** The display's rotation (Surface.ROTATION_*: 0 portrait, 1 or 3 sideways, 2 upside down). */
+    @ReactMethod
+    public void displayRotation(Promise promise) {
+        try {
+            WindowManager w = (WindowManager) getReactApplicationContext().getSystemService(Context.WINDOW_SERVICE);
+            promise.resolve(w.getDefaultDisplay().getRotation());
+        } catch (Throwable e) {
+            promise.reject("E_ROTATION", e.toString(), e);
+        }
+    }
+
+    /**
+     * How far DOC has scrolled a page it shows zoomed to the width of a sideways screen (R83): the
+     * scroll (in screen px) at which the screen capture's rows of dark pixels best match the render's.
+     * `m`: scale and left/top (screen px -> render px at scroll 0), maxScroll, and the screen band
+     * to compare (x0..x1, y0..y1; away from the toolbars and the floating button).
+     */
+    @ReactMethod
+    public void findScroll(String capturePath, String renderPath, ReadableMap m, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap cap = BitmapFactory.decodeFile(capturePath);
+                Bitmap ren = BitmapFactory.decodeFile(renderPath);
+                if (cap == null || ren == null) throw new IOException("cannot decode the capture or the render");
+                double k = m.getDouble("scale"), left = m.getDouble("left"), top = m.getDouble("top");
+                int maxScroll = Math.max(0, m.getInt("maxScroll"));
+                int x0 = Math.max(0, m.getInt("x0")), x1 = Math.min(cap.getWidth(), m.getInt("x1"));
+                int y0 = Math.max(0, m.getInt("y0")), y1 = Math.min(cap.getHeight(), m.getInt("y1"));
+                int rx0 = (int) Math.max(0, Math.round(left + x0 * k)), rx1 = (int) Math.min(ren.getWidth(), Math.round(left + x1 * k));
+                if (x0 >= x1 || y0 >= y1 || rx0 >= rx1) throw new IOException("empty band");
+                double[] capRows = darkRows(cap, x0, x1, y0, y1);
+                double[] renRows = darkRows(ren, rx0, rx1, 0, ren.getHeight());
+                cap.recycle();
+                ren.recycle();
+                int best = 0;
+                double bestScore = Double.MAX_VALUE, zeroScore = 0;
+                for (int s = 0; s <= maxScroll; s++) {
+                    double score = 0;
+                    for (int y = y0; y < y1; y++) {
+                        int r = (int) Math.round(top + (y + s) * k);
+                        double d = r >= 0 && r < renRows.length ? renRows[r] : 0;
+                        score += Math.abs(capRows[y - y0] - d);
+                    }
+                    if (s == 0) zeroScore = score;
+                    if (score < bestScore) { bestScore = score; best = s; }
+                }
+                WritableMap out = Arguments.createMap();
+                out.putInt("scroll", best);
+                out.putDouble("score", bestScore / (y1 - y0));
+                out.putDouble("scoreAtZero", zeroScore / (y1 - y0));
+                promise.resolve(out);
+            } catch (Throwable e) {
+                Log.e(TAG, "findScroll failed", e);
+                promise.reject("E_SCROLL", e.toString(), e);
+            }
+        }).start();
+    }
+
+    /** The share of dark pixels in each row y0..y1 of the columns x0..x1. */
+    private static double[] darkRows(Bitmap bm, int x0, int x1, int y0, int y1) {
+        double[] out = new double[y1 - y0];
+        int[] row = new int[x1 - x0];
+        for (int y = y0; y < y1; y++) {
+            bm.getPixels(row, 0, x1 - x0, x0, y, x1 - x0, 1);
+            int dark = 0;
+            for (int c : row) if (luma(c) < DARK) dark++;
+            out[y - y0] = dark / (double) (x1 - x0);
+        }
+        return out;
     }
 
     /** An image file's pixel size, without decoding it. */

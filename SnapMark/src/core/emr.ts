@@ -42,7 +42,8 @@ const PORTRAIT_SCREENS: ReadonlyArray<Size> = [
 /**
  * EMR units per px down the page (kx) and across it (ky), and the width the x axis is flipped around.
  * A known page size uses its own range. A wider frame as tall as a screen is a landscape PDF page
- * zoomed to the screen height (R81): it keeps the screen's units, flipped around its own width.
+ * zoomed to the screen height (R81); a frame as wide as a screen's long side is a page zoomed to the
+ * width of the sideways screen (R83). Both keep the screen's units, flipped around their own width.
  */
 function emrAxes(page: Size): { kx: number; ky: number; width: number } {
   const known = PORTRAIT_SCREENS.some(
@@ -52,7 +53,9 @@ function emrAxes(page: Size): { kx: number; ky: number; width: number } {
     const [maxX, maxY] = emrRange(page);
     return { kx: maxX / (page.height - 1), ky: maxY / (page.width - 1), width: page.width };
   }
-  const screen = PORTRAIT_SCREENS.find(s => s.height === page.height && page.width > s.width);
+  const screen =
+    PORTRAIT_SCREENS.find(s => s.height === page.height && page.width > s.width) ??
+    PORTRAIT_SCREENS.find(s => s.height === page.width);
   if (!screen) {
     throw new Error(`no EMR range for a ${page.width}x${page.height} page`);
   }

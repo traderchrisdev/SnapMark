@@ -45,6 +45,26 @@ export interface RenderReport {
   zoneInk: number[];
 }
 
+/** Screen px -> render px at scroll 0, how far it may scroll, and the screen band to compare. */
+export interface ScrollSearch {
+  scale: number;
+  left: number;
+  top: number;
+  maxScroll: number;
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+export interface ScrollFound {
+  /** Screen px the page is scrolled down by. */
+  scroll: number;
+  /** Mean row mismatch at that scroll, and at no scroll (0 is a perfect match). */
+  score: number;
+  scoreAtZero: number;
+}
+
 interface Spec {
   showBubble(): Promise<boolean>;
   hideBubble(): Promise<boolean>;
@@ -59,6 +79,8 @@ interface Spec {
   writeText(path: string, text: string): Promise<boolean>;
   pdfPageSize(path: string, page: number): Promise<Size>;
   imageSize(path: string): Promise<Size>;
+  displayRotation(): Promise<number>;
+  findScroll(capturePath: string, renderPath: string, m: ScrollSearch): Promise<ScrollFound>;
   letterbox(srcPath: string, outPath: string, width: number, height: number): Promise<boolean>;
   releasePenLock(): Promise<boolean>;
   foreground(): Promise<FrontTask>;
@@ -109,6 +131,11 @@ export const Native = {
   /** `src` fitted and centred on a white image of the given size. */
   letterbox: (srcPath: string, outPath: string, width: number, height: number) =>
     call('letterbox', m => m.letterbox(srcPath, outPath, width, height)),
+  /** The display's rotation: 0 portrait, 1 or 3 sideways (R83). */
+  displayRotation: () => call('displayRotation', m => m.displayRotation()),
+  /** How far DOC has scrolled a page shown zoomed on a sideways screen (R83). */
+  findScroll: (capturePath: string, renderPath: string, search: ScrollSearch) =>
+    call('findScroll', m => m.findScroll(capturePath, renderPath, search)),
   /** An image file's pixel size. */
   imageSize: (path: string) => call('imageSize', m => m.imageSize(path)),
   /** A PDF page's own size in points (Android's PdfRenderer). */

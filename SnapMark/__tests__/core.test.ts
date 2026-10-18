@@ -35,7 +35,7 @@ import {
   tmpRenderPath,
 } from '../src/core/paths';
 import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
-import { docFrames, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
+import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
 import { describeAge, isFresh, newestFirst, parseScreenshotTime } from '../src/core/screenshots';
 import { decodeSettings, DEFAULT_SETTINGS, encodeSetting, entryKey, inboxPath } from '../src/core/settings';
 import { StepTimer } from '../src/core/timer';
@@ -565,5 +565,49 @@ describe('wobbly highlights (0.14)', () => {
     expect(isLineHighlight(zigzag, 3800, 2.2)).toBe(true);
     const twoLines = [{ x: 200, y: 520 }, { x: 1400, y: 640 }]; // 120 px: across two lines
     expect(isLineHighlight(twoLines, 3800, 2.2)).toBe(false);
+  });
+});
+
+describe('frames on a sideways screen (R83)', () => {
+  const manta = { width: 1920, height: 2560 };
+  const nomad = { width: 1404, height: 1872 };
+  it('keep the ink in the page zoomed to the sideways screen width, render it fitted to the portrait page', () => {
+    const f = docFrames({ width: 600, height: 800 }, manta, true);
+    expect(f.rotated).toBe(true);
+    expect(f.landscape).toBe(false);
+    expect(f.view).toEqual({ width: 2560, height: 1920 });
+    expect(f.inkSize).toEqual({ width: 2560, height: 3413 });
+    expect(f.inkToRender.scale).toBeCloseTo(0.75, 6);
+    expect(scalePoints([{ x: 2560, y: 3413 }], f.inkToRender)[0]).toEqual({ x: 1920, y: 2560 });
+    // The Nomad user's paper: 595 x 793 pt on a sideways Nomad.
+    const g = docFrames({ width: 595, height: 793 }, nomad, true);
+    expect(g.inkSize).toEqual({ width: 1872, height: 2495 });
+  });
+  it('show the page upright or zoomed to the width, scrolled; the ink is the zoomed page', () => {
+    const top = docFrames({ width: 600, height: 800 }, manta, true);
+    expect(scalePoints([{ x: 300, y: 600 }], top.viewToRender)[0]).toEqual({ x: 300, y: 600 });
+    expect(scalePoints([{ x: 300, y: 600 }], top.viewToInk)[0]).toEqual({ x: 400, y: 800 });
+    const upright = viewedAs(top, uprightView(400));
+    expect(scalePoints([{ x: 300, y: 600 }], upright.viewToRender)[0]).toEqual({ x: 300, y: 1000 });
+    expect(scalePoints([{ x: 300, y: 600 }], upright.viewToInk)[0]).toEqual({ x: 400, y: 1333 });
+    const zoomed = viewedAs(top, widthView(top, 400));
+    expect(scalePoints([{ x: 400, y: 600 }], zoomed.viewToInk)[0]).toEqual({ x: 400, y: 1000 });
+    expect(scalePoints([{ x: 400, y: 600 }], zoomed.viewToRender)[0]).toEqual({ x: 300, y: 750 });
+  });
+  it('read in NOTE: the ink upright, the view still sideways', () => {
+    const f = viewedAs(docFrames({ width: 600, height: 800 }, manta, true), uprightView(200));
+    const n = inNote(f);
+    expect(n.inkSize).toEqual(manta);
+    expect(isIdentity(n.inkToRender)).toBe(true);
+    expect(scalePoints([{ x: 300, y: 600 }], n.viewToInk)[0]).toEqual({ x: 300, y: 800 });
+    expect(inNote(docFrames({ width: 600, height: 800 }, manta))).toEqual(docFrames({ width: 600, height: 800 }, manta));
+  });
+  it('read the raw ink with the screen\'s units, flipped around the zoomed width', () => {
+    // Line 05's "ink" on the test page as the Manta reported it, upright and sideways (x 6564 vs 8752).
+    const upright = fromEmr({ x: 6564, y: 2324 }, manta);
+    const sideways = fromEmr({ x: 8752, y: 3099 }, { width: 2560, height: 3413 });
+    expect(sideways.x * 0.75).toBeCloseTo(upright.x, -1);
+    expect(sideways.y * 0.75).toBeCloseTo(upright.y, -1);
+    expect(() => fromEmr({ x: 1, y: 1 }, { width: 1872, height: 2495 })).not.toThrow();
   });
 });

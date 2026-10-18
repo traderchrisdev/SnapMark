@@ -38,14 +38,14 @@ import {
 } from '../core/paths';
 import { PixelRatio } from 'react-native';
 import { fitInsetsDp } from '../core/fit';
-import { docFrames, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type DocFrames, type MarginLayout } from '../core/margin';
+import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type DocFrames, type MarginLayout } from '../core/margin';
 import { insetsToPx } from '../core/region';
 import { collects, inboxPath, snapsDir, type Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
 import { Native, type TextBand } from '../platform/native';
-import { screenSizePx } from '../platform/screen';
+import { uprightScreenPx } from '../platform/screen';
 import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
@@ -124,14 +124,15 @@ export async function snapPage(settings: Settings): Promise<void> {
   t.mark('render');
 
   // Ink px -> render px: the ink's frame onto the page (R81), then the page onto the render.
-  let inkLayout: MarginLayout = composeLayouts(
-    inkFrame,
-    appendToInbox
-      ? fitLayout(pageSize, renderSize)
-      : margin
-        ? { scale: margin.scale, imageSize: margin.imageSize, rect: { left: 0, top: 0, right: margin.imageSize.width, bottom: margin.imageSize.height } }
-        : fitLayout(pageSize, pageSize),
-  );
+  const pageToRender = appendToInbox
+    ? fitLayout(pageSize, renderSize)
+    : margin
+      ? { scale: margin.scale, imageSize: margin.imageSize, rect: { left: 0, top: 0, right: margin.imageSize.width, bottom: margin.imageSize.height } }
+      : fitLayout(pageSize, pageSize);
+  let inkLayout: MarginLayout = composeLayouts(inkFrame, pageToRender);
+  // Ink read later with NOTE in front is upright even on a sideways screen (R83).
+  const noteFrames = inNote(frames);
+  let noteInkLayout: MarginLayout = composeLayouts(noteFrames.inkToRender, pageToRender);
   let link = backlinkSpec(docPath, docTitle(docPath), page, renderSize);
   // Where the link goes: bottom-left if blank, else top-right if blank, else a strip under the page (R79).
   const topLink = backlinkSpecTop(docPath, docTitle(docPath), page, renderSize);
@@ -149,6 +150,7 @@ export async function snapPage(settings: Settings): Promise<void> {
       await fs.remove(render).catch(() => undefined);
       render = shrunk;
       inkLayout = composeLayouts(inkLayout, strip);
+      noteInkLayout = composeLayouts(noteInkLayout, strip);
     }
     const where = link === topLink ? 'top-right' : inkBottom > ZONE_INK_LIMIT ? `bottom, page shrunk to ${inkLayout.scale.toFixed(3)}` : 'bottom';
     log(`snap page: link ${where} (dark px at bottom ${inkBottom}, top ${inkTop})`);
@@ -184,7 +186,22 @@ export async function snapPage(settings: Settings): Promise<void> {
     const blank = appendToInbox || margin ? null : await pooledBlank(pluginDir, isPortrait);
     t.mark('paths');
 
-    const snap: Snap = { notePath, docPath, title, page, pageSize, render, handwriting, highlightStyle: settings.highlightStyle, inkLayout, inkFrame, inkSize, link, renderSize };
+    const late = handwriting === null;
+    const snap: Snap = {
+      notePath,
+      docPath,
+      title,
+      page,
+      pageSize,
+      render,
+      handwriting,
+      highlightStyle: settings.highlightStyle,
+      inkLayout: late ? noteInkLayout : inkLayout,
+      inkFrame: late ? noteFrames.inkToRender : inkFrame,
+      inkSize: late ? noteFrames.inkSize : inkSize,
+      link,
+      renderSize,
+    };
     const stay = settings.afterSnap === 'stay';
     let linked: boolean;
     let where: string;
@@ -232,8 +249,9 @@ export async function snapPage(settings: Settings): Promise<void> {
  */
 export async function documentPageSize(docPath: string, page: number, lastPage = false): Promise<Size> {
   if (lastPage) {
-    // DOC refuses the last page (R75, R80) and may show "Note Not Found"; the answer is the screen size.
-    return screenSizePx();
+    // DOC refuses the last page (R75, R80) and may show "Note Not Found"; the answer is the screen
+    // size, upright even on a sideways screen (R83).
+    return uprightScreenPx();
   }
   try {
     return await Sn.pageSize(docPath, page);
@@ -242,7 +260,7 @@ export async function documentPageSize(docPath: string, page: number, lastPage =
       throw e;
     }
     const total = await Sn.docTotalPages().catch(() => -1);
-    const size = screenSizePx();
+    const size = uprightScreenPx();
     log(`getPageSize refused page ${page + 1} (DOC says ${total} pages); using the screen size ${size.width}x${size.height}`);
     return size;
   }
@@ -446,14 +464,22 @@ async function buildInk(docPath: string, page: number, pageSize: Size, render: s
   }
 }
 
-/** The page's frames (R81): only a PDF page wider than the screen differs from the screen itself. */
+/**
+ * The page's frames: only a PDF page wider than the screen (R81), or a document on a device turned
+ * sideways (R83), differs from the screen itself.
+ */
 export async function docFramesOf(docPath: string, page: number, pageSize: Size): Promise<DocFrames> {
-  const pdf = /\.pdf$/i.test(docPath) && Native.available ? await Native.pdfPageSize(docPath, page).catch(e => {
+  const isPdf = /\.pdf$/i.test(docPath);
+  const pdf = isPdf && Native.available ? await Native.pdfPageSize(docPath, page).catch(e => {
     logError('PDF page size (assuming a portrait page)', e);
     return null;
   }) : null;
-  const frames = docFrames(pdf, pageSize);
-  if (frames.landscape && pdf) {
+  const rotation = Native.available ? await Native.displayRotation().catch(() => 0) : 0;
+  // An EPUB keeps its upright layout on a sideways screen: a page the size of the screen (R83).
+  const frames = docFrames(pdf, pageSize, rotation % 2 === 1);
+  if (frames.rotated) {
+    log(`page ${page + 1}${pdf ? ` is ${pdf.width}x${pdf.height} pt,` : ''} shown on a sideways screen; ink frame ${frames.inkSize.width}x${frames.inkSize.height}, to the render x${frames.inkToRender.scale.toFixed(4)} +${frames.inkToRender.rect.left},${frames.inkToRender.rect.top}`);
+  } else if (frames.landscape && pdf) {
     log(`page ${page + 1} is ${pdf.width}x${pdf.height} pt: landscape; ink frame ${frames.inkSize.width}x${frames.inkSize.height}, to the render x${frames.inkToRender.scale.toFixed(4)} +${frames.inkToRender.rect.left},${frames.inkToRender.rect.top}`);
   }
   return frames;
@@ -465,7 +491,7 @@ export async function docFramesOf(docPath: string, page: number, pageSize: Size)
  * centred). No-op for any other page.
  */
 export async function normalizeRender(render: string, size: Size, frames: DocFrames): Promise<void> {
-  if (!frames.landscape || !Native.available) {
+  if ((!frames.landscape && !frames.rotated) || !Native.available) {
     return;
   }
   const got = await Native.imageSize(render).catch(() => null);
@@ -477,7 +503,35 @@ export async function normalizeRender(render: string, size: Size, frames: DocFra
       await fs.copy(fitted, render);
     });
     await fs.remove(fitted).catch(() => undefined);
-    log(`landscape render ${got.width}x${got.height} letterboxed into ${size.width}x${size.height}`);
+    log(`${got.width}x${got.height} render letterboxed into ${size.width}x${size.height}`);
+  }
+}
+
+/**
+ * On a sideways screen DOC shows the page upright or zoomed to the width, scrolled (R83): the frames
+ * for whichever, at whatever scroll, lines the screen capture up best with the render. Unchanged
+ * (upright, at the top) when the search fails.
+ */
+export async function scrolledView(frames: DocFrames, capture: string, render: string): Promise<DocFrames> {
+  if (!frames.rotated || !Native.available) {
+    return frames;
+  }
+  const v = frames.view;
+  const band = { x0: Math.round(v.width * 0.1), x1: Math.round(v.width * 0.9), y0: Math.round(v.height * 0.04), y1: Math.round(v.height * 0.92) };
+  const upright = uprightView(0);
+  const zoomed = widthView(frames, 0);
+  const pageHeight = frames.inkToRender.imageSize.height + frames.inkToRender.rect.top;
+  try {
+    const [a, b] = await Promise.all([
+      Native.findScroll(capture, render, { ...upright, ...band, maxScroll: Math.max(0, pageHeight - v.height) }),
+      Native.findScroll(capture, render, { ...zoomed, ...band, maxScroll: Math.max(0, frames.inkSize.height - v.height) }),
+    ]);
+    const useZoomed = b.score < a.score;
+    log(`sideways screen: upright, scrolled ${a.scroll} px: ${a.score.toFixed(4)}; zoomed to the width, scrolled ${b.scroll} px: ${b.score.toFixed(4)} -> ${useZoomed ? 'zoomed' : 'upright'}`);
+    return viewedAs(frames, useZoomed ? widthView(frames, b.scroll) : uprightView(a.scroll));
+  } catch (e) {
+    logError('sideways screen: finding the view (assuming upright, at the top)', e);
+    return frames;
   }
 }
 

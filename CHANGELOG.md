@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.2 (2026-10-18)
+
+Fixes for what a Nomad user found with the device turned sideways (landscape orientation).
+
+- **Snaps work with your Supernote turned sideways.** The document app keeps your handwriting in a different frame then, so whole-page snaps left it out or put it in the wrong place, and Snap region cut the wrong part of the page. SnapMark now detects the turned screen, works out whether the page is shown at its normal size or zoomed to the width (and how far it's scrolled), and places the cut, your ink and the underlines as it does upright. PDFs and EPUBs, last pages and **Into the note I'm working in** included.
+- **Underlines stay clear of descenders** (the tails of g, p, y) on small text, as on a Nomad.
+- For developers: the device test also snaps with the device turned sideways (a page, a region, the last page).
+
 ## 0.14.1 (2026-10-18)
 
 - **A wobbly highlight still becomes an underline.** A hand-drawn marker stroke that goes up and down a little (or back and forth) over one line was taken for a mark across several lines and copied as-is. When the page shows a text line under it, SnapMark now accepts up to about twice the marker's height as one line and draws the underline under that line; a mark that really spans two lines is still copied as drawn.

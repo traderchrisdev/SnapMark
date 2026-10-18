@@ -507,10 +507,36 @@ def note_files():
     return {l.strip() for l in out.splitlines() if l.strip().endswith('.note')}
 
 
-def snap(page, region_box=None, doc=None):
-    """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None)."""
+def turn(sideways):
+    """Turn the device sideways (the screen rotated 90 degrees) or back upright."""
+    sh(f'settings put system user_rotation {1 if sideways else 0}')
+    time.sleep(4)
+
+
+# The region screen on a sideways Manta shows the 2560 x 1920 capture scaled by 2320/2560, below its
+# top bar: capture px -> screen px for the swipe.
+def sideways_box(box):
+    k = 2320 / 2560
+    l, t, r, b = box
+    return (round(120 + l * k), round(184 + t * k), round(120 + r * k), round(184 + b * k))
+
+
+def snap(page, region_box=None, doc=None, sideways=False):
+    """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None).
+    `sideways`: with the device turned sideways (`region_box` then in capture px; R83)."""
+    if not sideways:
+        return _snap(page, region_box, doc)
+    try:
+        return _snap(page, sideways_box(region_box) if region_box else None, doc, True)
+    finally:
+        turn(False)
+
+
+def _snap(page, region_box=None, doc=None, sideways=False):
     if not open_doc(page, doc):
         return [], None
+    if sideways:
+        turn(True)
     # A full log buffer makes logd drop the plugin host's lines first (it is uid 1000, the biggest
     # logger); clear it so this snap's lines survive.
     adb('logcat', '-c', check=False)
@@ -526,6 +552,8 @@ def snap(page, region_box=None, doc=None):
         close_plugin_screens()
         if not open_doc(page, doc):
             return snapmark_lines(stamp), None
+        if sideways:
+            turn(True)
         tap(bubble_center() or b)
         nodes = wait_ui('Whole page', 25)
     if nodes:
@@ -615,6 +643,36 @@ def cmd_run(args):
                     if bl:
                         res.check('-1' not in bl, 'every highlight found its text line', bl)
                     res.check(any(re.search(r'ink\(\d+\)', l) for l in log) or bl, 'handwriting copied', '')
+            res.log = log
+            results.append(res)
+
+    if not args.pages and not args.no_sideways:
+        # The device turned sideways (R83): DOC keeps the ink in the page zoomed to the screen's width,
+        # and shows the page upright from the left. The notes must come out as they do upright.
+        lines = {l['n']: l for l in layout['pages'][0]['lines']}
+        for page, box in ((1, None),
+                          (1, (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
+                          (LAST_PAGE, None)):
+            res = Result(f'Sideways: {"region of " if box else ""}page {page}{" (last)" if page == LAST_PAGE else ""}')
+            log, path = snap(page, box, sideways=True)
+            res.check(path, 'snap finished', path or 'no snap log line')
+            res.check(any('shown on a sideways screen' in l for l in log) or not log, 'seen as sideways', '')
+            if path:
+                made.append(path)
+                local = os.path.join(out_dir, f'sideways-{"region-" if box else ""}p{page}.note')
+                adb('pull', path, local)
+                total, gray = render_note(local, local.replace('.note', '.png'))
+                res.check(total == 1, 'note has one page', f'{total} pages')
+                if box is None:
+                    check_page_snap(res, page, None, log, gray, note_tags(local), layout, with_ink)
+                elif with_ink:
+                    # Read in DOC once it reports the ink sideways: the lines' bottoms in the zoomed frame.
+                    bl = next((l for l in log if 'line bottoms' in l), '')
+                    got = [int(v) for v in re.findall(r'-?\d+', bl.split('line bottoms')[-1])] if bl else []
+                    want = [round(lines[n]['bottom'] * 2560 / 1920) for n in HIGHLIGHTS[1]]
+                    ok = len(got) == len(want) and all(abs(g - w) <= 12 for g, w in zip(got, want))
+                    res.check(ok, 'highlights read in the sideways frame', f'line bottoms {got}, about {want}')
+                    res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
             res.log = log
             results.append(res)
 
@@ -804,6 +862,7 @@ def main():
     r.add_argument('--no-extra', action='store_true', help='skip the landscape PDF and EPUB snaps')
     r.add_argument('--no-paste', action='store_true', help='skip the "Into the note I\'m working in" pastes')
     r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
+    r.add_argument('--no-sideways', action='store_true', help='skip the snaps with the device turned sideways')
     args = p.parse_args()
     {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 
