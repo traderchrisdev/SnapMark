@@ -74,6 +74,8 @@ In a PDF or EPUB, tap **Snap region** and [drag a box](#choosing-a-region) over 
 
 ## Paste into the note you're working in
 
+![Mark up the PDF, tap the button and drag a box, and it lands in your note below what's there, highlights as underlines and a link back to the page](docs/screenshots/4-paste-into-note.png)
+
 Reading a PDF alongside a note of your own? Set **Where snaps go → Into the note I'm working in**. Then after **Snap region** (or a tap on the floating button):
 - Notes comes back with **the note it last had open**, on the page you were on;
 - the cut-out is placed on that page as a **picture**, at the size you saw it, **below what's already on the page**. If there's no room, it goes on a new page right after. Lasso it to move or resize it;
