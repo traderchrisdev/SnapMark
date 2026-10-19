@@ -48,6 +48,7 @@ import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
 import { Native, type TextBand } from '../platform/native';
 import { uprightScreenPx } from '../platform/screen';
+import { beginAdding, recordInserted, rememberNewNote } from './undo';
 import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
@@ -217,9 +218,11 @@ export async function snapPage(settings: Settings): Promise<void> {
       } else if (margin) {
         linked = await viaMargin(snap, margin, pluginDir, isPortrait, !stay, t);
         where = title;
+        rememberNewNote(notePath);
       } else {
         linked = blank ? await viaOpenedSnap(snap, blank, pluginDir, stay, t) : await viaHelperNote(snap, pluginDir, isPortrait, !stay, t);
         where = collects(settings) ? 'Snaps inbox' : title;
+        rememberNewNote(notePath);
       }
     } catch (e) {
       // Leave the user on their document, not on a helper or half-made note.
@@ -276,6 +279,7 @@ async function viaInbox(snap: Snap, pluginDir: string, stay: boolean, t: StepTim
   await waitUntilCurrent(snap.notePath); // NOTE in front: NOTE-only file APIs are allowed now
   t.mark('open');
   const notePage = await appendToOpenInbox(snap.notePath, snap.render);
+  beginAdding('inbox', snap.notePath, notePage, 0, true, notePage + 1);
   const linked = await addHandwritingAndBacklink(snap, notePage);
   t.mark(`page ${notePage + 1}`);
   await refillPool(pluginDir);
@@ -652,6 +656,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
     const all = [...strokes, ...shapes, linkEl];
     try {
       await Sn.insertElements(notePath, notePage, all);
+      recordInserted(notePath, notePage, all);
       log(`snap page: inserted ${strokes.length} strokes, ${shapes.length} shapes and the link`);
       return true;
     } catch (e) {
@@ -660,6 +665,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
       }
       logError(`insert ${strokes.length} strokes + ${shapes.length} shapes + link (retrying link only)`, e);
       await Sn.insertElements(notePath, notePage, [linkEl]);
+      recordInserted(notePath, notePage, [linkEl]);
       toast('Snapped, but your handwriting could not be copied.', true);
       return true;
     }

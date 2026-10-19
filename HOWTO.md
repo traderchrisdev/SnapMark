@@ -87,6 +87,14 @@ Things to know:
 - **Whole screen** from the floating button pastes the whole screen. In a PDF or EPUB, **Whole page** and Snap page still make a note of their own, as do the screenshot buttons.
 - **After a snap → Stay here** pastes and brings you back to the app or document you were in.
 
+## Undo last snap
+
+Pasted the wrong part, or into the wrong note? In Notes, open the toolbar's plugins menu and tap **Undo last snap**. It takes back the last snap that went into a notebook you already had:
+- **a paste** into the note you're working in: the picture, its ink and its link or caption are removed (and the page, if the paste had made one);
+- **a Snaps inbox page**: the page is removed.
+
+It only removes what SnapMark added, and only while that's still as the snap left it. If you've written on that page or added pages since, it leaves everything as it is and says so. A snap that made a note of its own isn't deleted (SnapMark never deletes your files): Undo tells you which note it was, and you can delete it in Files. Undo remembers only the last snap, and forgets it when the plugin restarts.
+
 ## The floating capture button
 
 Turn it on in SnapMark's settings (**Floating capture button → On**). A small button with a viewfinder icon then floats over everything: notes, documents, Kindle, the browser, Settings.
@@ -112,12 +120,13 @@ Turn it on in SnapMark's settings (**Floating capture button → On**). A small 
 ![Mark up a page, tap the floating button and drag a box, then write on the note it makes](docs/screenshots/1-snap-region.png)
 
 After **Snap region** or a tap on the floating button, you see the page or screen as it was:
-- **Drag** with your finger or the pen to draw a box. Drag a corner to adjust it, or drag elsewhere to start over.
+- **Drag** with your finger or the pen to draw a box, or **tap two corners**: tap one corner (a small square marks it), then the opposite one. Taps are quicker on e-ink, where a drag lags behind.
+- To adjust the box, drag a corner, or tap a corner and then tap where it should go. Drag or tap elsewhere to start over.
 - **Snap region** keeps that part.
 - **Whole screen** (or **Whole page** in a document) keeps everything.
 - **Cancel** goes back to where you were.
 
-While this screen is up, the pen draws boxes, not ink. On e-ink the box follows your finger with a little delay; that's the display's refresh speed.
+While this screen is up, the pen draws boxes, not ink. On e-ink a dragged box follows your finger with a little delay; that's the display's refresh speed.
 
 ## Annotate a screenshot
 

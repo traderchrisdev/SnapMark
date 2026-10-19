@@ -121,6 +121,25 @@ def insert_screenshot() -> Image.Image:
     return im
 
 
+def undo_snap() -> Image.Image:
+    """A page with an arrow curling back over it: take the last snap back."""
+    im = Image.new("RGBA", (SIZE, SIZE), CLEAR)
+    d = ImageDraw.Draw(im)
+    left, top, right, bottom, fold = 52, 58, 168, 182, 26
+    page = [(left, top), (right - fold, top), (right, top + fold), (right, bottom), (left, bottom), (left, top)]
+    d.line(page, fill=INK, width=10, joint="curve")
+    d.line([(right - fold, top), (right - fold, top + fold), (right, top + fold)], fill=INK, width=10, joint="curve")
+    for y in (112, 140):
+        d.line([(left + 22, y), (right - 22, y)], fill=INK, width=8)
+    # The arrow: an arc over the page's top left, its head pointing down-left.
+    cx, cy, r = 74, 70, 50
+    d.rectangle([cx - r - STROKE, cy - r - STROKE, cx + 12, cy + 4], fill=CLEAR)
+    d.arc([cx - r, cy - r, cx + r, cy + r], start=180, end=330, fill=INK, width=STROKE)
+    tip = (cx - r, cy + 30)
+    d.polygon([(tip[0] - 26, cy - 6), (tip[0] + 26, cy - 6), tip], fill=INK)
+    return im
+
+
 def save(im: Image.Image, name: str) -> None:
     out = im.resize((48, 48), Image.LANCZOS)
     out.save(ASSETS / name, optimize=True)
@@ -133,4 +152,5 @@ if __name__ == "__main__":
     save(annotate_screenshot(), "icon-annotate-screenshot.png")
     save(export_png(), "icon-export-png.png")
     save(insert_screenshot(), "icon-insert-screenshot.png")
+    save(undo_snap(), "icon-undo-snap.png")
     save(snap_page(), "icon.png")  # plugin icon in Settings -> Apps -> Plugins

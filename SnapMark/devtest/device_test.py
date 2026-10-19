@@ -341,6 +341,29 @@ def underline_row(gray, x0, x1, y0, y1):
     return best, best_n
 
 
+# The plugin icon in the Notes toolbar (Manta, upright): it opens the plugins menu.
+NOTE_PLUGINS_ICON = (56, 1952)
+
+
+def press_undo():
+    """Tap SnapMark's "Undo last snap" in the Notes toolbar's plugins menu; returns SnapMark's log lines."""
+    tap(NOTE_PLUGINS_ICON)
+    nodes = wait_ui('Undo last snap', 10)
+    if not nodes:
+        return ['test: "Undo last snap" not in the plugins menu']
+    adb('logcat', '-c', check=False)
+    stamp = device_time()
+    tap(nodes['Undo last snap'])
+    wait_for(stamp, r'^undo: (Removed|Can.t|Nothing)', 20)
+    time.sleep(2)
+    return snapmark_lines(stamp)
+
+
+def note_pages(path):
+    import supernotelib as sn
+    return sn.load_notebook(path).get_total_pages()
+
+
 def check_page_snap(res, page, lines, log, gray, tags, layout, with_ink):
     pg = layout['pages'][page - 1]
     decision = next((l for l in log if l.startswith('snap page: link')), '')
@@ -533,19 +556,20 @@ def zoom_to_next_page():
     return True
 
 
-def snap(page, region_box=None, doc=None, sideways=False, zoomed=False):
+def snap(page, region_box=None, doc=None, sideways=False, zoomed=False, taps=False):
     """Snap `page` via the floating button. Returns (log lines, device note path) or (log, None).
     `sideways`: with the device turned sideways (`region_box` then in capture px; R83). `zoomed`:
-    sideways, page-forward to page + 1 shown zoomed to the width, and snap that."""
+    sideways, page-forward to page + 1 shown zoomed to the width, and snap that. `taps`: draw the box
+    with two taps (one corner, then the other) instead of a drag."""
     if not sideways:
-        return _snap(page, region_box, doc)
+        return _snap(page, region_box, doc, taps=taps)
     try:
         return _snap(page, sideways_box(region_box) if region_box else None, doc, True, zoomed)
     finally:
         turn(False)
 
 
-def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False):
+def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False, taps=False):
     if not open_doc(page, doc):
         return [], None
     if sideways:
@@ -576,7 +600,12 @@ def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False):
     if nodes:
         if region_box:
             l, t, r, bt = region_box
-            sh(f'input swipe {l} {t} {r} {bt} 600')
+            if taps:
+                tap((l, t))
+                time.sleep(1)
+                tap((r, bt))
+            else:
+                sh(f'input swipe {l} {t} {r} {bt} 600')
             time.sleep(1)
             tap(ui_nodes().get('Snap region', nodes['Snap region']))
         else:
@@ -636,12 +665,13 @@ def cmd_run(args):
         lines = {l['n']: l for l in layout['pages'][0]['lines']}
         regions = [
             (1, 'lines 02-08', (lines[2]['left'] - 30, lines[2]['top'] - 20, lines[8]['right'] + 20, lines[8]['bottom'] + 20)),
-            # The last page: title and the ink under it; its ink is read through Notes (R80).
-            (LAST_PAGE, 'title and ink', (120, 240, 1800, 1100)),
+            # The last page: title and the ink under it; its ink is read through Notes (R80). The box is
+            # made with two taps (one corner, then the opposite one).
+            (LAST_PAGE, 'title and ink, two taps', (120, 240, 1800, 1100)),
         ]
         for page, what, box in regions:
             res = Result(f'Snap region (page {page}, {what})')
-            log, path = snap(page, box)
+            log, path = snap(page, box, taps='taps' in what)
             res.check(path, 'snap finished', path or 'no "snap region" log line')
             if path:
                 made.append(path)
@@ -826,6 +856,15 @@ def cmd_run(args):
                 grew = [k for k in after if after[k] > before.get(k, 0)]
                 res.check(grew if with_ink else True, 'handwriting added as strokes', f'stroke data before {before}, after {after}')
                 render_note(after_local, after_local.replace('.note', '.png'), (grew or [1])[-1] - 1)
+                if page == LAST_PAGE:
+                    # Undo last snap (Notes toolbar → plugins): the note must be as it was before this paste.
+                    ulog = press_undo()
+                    undone_local = os.path.join(out_dir, f'paste-target-undone-p{page}.note')
+                    adb('pull', target, undone_local)
+                    said = next((l for l in ulog if l.startswith('undo: ') and ('Removed' in l or "Can't" in l or 'Nothing' in l)), '')
+                    res.check(stroke_bytes(undone_local) == before and note_pages(undone_local) == note_pages(before_local),
+                              'Undo last snap removed the paste', f'{said}; stroke data {stroke_bytes(undone_local)}, before {before}')
+                    log = log + ulog
                 res.log = log
                 results.append(res)
         finally:
@@ -855,6 +894,13 @@ def cmd_run(args):
                         if with_ink:
                             res.check(2 in mark_pages_with_ink(local), 'last page: ink added to inbox page 2',
                                       f'pages with stroke data: {mark_pages_with_ink(local)}')
+                        # Undo last snap takes the inbox page back (Notes shows the inbox after "Open it").
+                        ulog = press_undo()
+                        undone = os.path.join(out_dir, 'inbox-undone.note')
+                        adb('pull', path, undone)
+                        said = next((l for l in ulog if l.startswith('undo: ') and ('Removed' in l or "Can't" in l or 'Nothing' in l)), '')
+                        res.check(note_pages(undone) == 1, 'Undo last snap removed inbox page 2', f'{said}; {note_pages(undone)} pages')
+                        log = log + ulog
                     res.log = log
                     results.append(res)
             finally:

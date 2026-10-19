@@ -31,6 +31,7 @@ import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { assertUnlocked, firstFreePath } from './files';
+import { beginAdding, recordInserted, rememberNewNote } from './undo';
 import { appendToClosedInbox, appendToOpenInbox, reloadAndShow } from './inbox';
 import { refillPool } from './pool';
 
@@ -138,6 +139,7 @@ export async function snapScreenshot(shot: Screenshot, settings: Settings, opts:
     const notePath = await firstFreePath(screenshotNoteCandidates(dir, formatStamp(shot.takenAt ?? new Date()), opts.source));
     t.mark('paths');
     await Sn.createNote(notePath, page, isPortrait);
+    rememberNewNote(notePath);
     t.mark('createNote');
     if (hasExtras(opts)) {
       // Before opening, so the note is finished when NOTE shows it (R56).
@@ -191,6 +193,7 @@ async function appendScreenshotToInbox(
   const open = settings.afterSnap === 'open';
   if (!(await fs.exists(inbox))) {
     await Sn.createNote(inbox, page, isPortrait); // we're in NOTE: allowed, and a fresh FILE_ID
+    rememberNewNote(inbox);
     if (hasExtras(extras)) {
       await addToPage(inbox, 0, extras);
     }
@@ -215,6 +218,7 @@ async function appendScreenshotToInbox(
       await waitUntilCurrent(inbox);
     }
     pageIndex = await appendToOpenInbox(inbox, page);
+    beginAdding('inbox', inbox, pageIndex, 0, true, pageIndex + 1);
     if (hasExtras(extras)) {
       await addToPage(inbox, pageIndex, extras);
     }
@@ -222,6 +226,7 @@ async function appendScreenshotToInbox(
     await reloadAndShow(open ? pageIndex : null);
   } else {
     pageIndex = await appendToClosedInbox(inbox, page);
+    beginAdding('inbox', inbox, pageIndex, 0, true, pageIndex + 1);
     if (hasExtras(extras)) {
       await addToPage(inbox, pageIndex, extras);
     }
@@ -255,7 +260,9 @@ async function addToPage(notePath: string, notePage: number, extras: PageExtras)
       const from = extras.backlink;
       link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
     }
-    await Sn.insertElements(notePath, notePage, link ? [...ink, link] : ink);
+    const all = link ? [...ink, link] : ink;
+    await Sn.insertElements(notePath, notePage, all);
+    recordInserted(notePath, notePage, all);
   } catch (e) {
     logError('add ink/link to the new page (note kept without them)', e);
     toast(ink.length ? 'Saved, but your ink and the link back could not be added.' : 'Saved, but the link back to the page could not be added.', true);

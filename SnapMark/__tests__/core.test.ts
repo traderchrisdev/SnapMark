@@ -16,6 +16,7 @@ import {
   pastePlacement,
   regionPlacement,
   regionScale,
+  tapBox,
 } from '../src/core/region';
 import {
   docTitle,
@@ -619,5 +620,30 @@ describe('underlines on one line (R83)', () => {
     expect(alignSameLine([590, 591, 587, 587, 616, 640], 8)).toEqual([591, 591, 591, 591, 616, 640]);
     expect(alignSameLine([655, -1, 988, 660], 8)).toEqual([660, -1, 988, 660]);
     expect(alignSameLine([], 8)).toEqual([]);
+  });
+});
+
+describe('two taps make a box', () => {
+  const none = { box: null, anchor: null, marker: null };
+  it('marks a corner, then closes the box on the opposite one', () => {
+    const first = tapBox(none, { x: 100, y: 200 }, 40, 24);
+    expect(first).toEqual({ box: null, anchor: { x: 100, y: 200 }, marker: { x: 100, y: 200 } });
+    const second = tapBox(first, { x: 50, y: 400 }, 40, 24);
+    expect(second).toEqual({ box: { left: 50, top: 200, right: 100, bottom: 400 }, anchor: null, marker: null });
+  });
+  it('ignores a second tap on the same spot', () => {
+    const first = tapBox(none, { x: 100, y: 200 }, 40, 24);
+    expect(tapBox(first, { x: 105, y: 210 }, 40, 24)).toBe(first);
+  });
+  it('picks up a corner of the box and puts it down with the next tap', () => {
+    const box = { left: 100, top: 100, right: 500, bottom: 300 };
+    const picked = tapBox({ box, anchor: null, marker: null }, { x: 495, y: 305 }, 40, 24);
+    expect(picked.anchor).toEqual({ x: 100, y: 100 });
+    expect(picked.box).toBe(box);
+    expect(tapBox(picked, { x: 700, y: 600 }, 40, 24).box).toEqual({ left: 100, top: 100, right: 700, bottom: 600 });
+  });
+  it('starts over when the tap is away from the box\'s corners', () => {
+    const box = { left: 100, top: 100, right: 500, bottom: 300 };
+    expect(tapBox({ box, anchor: null, marker: null }, { x: 300, y: 800 }, 40, 24)).toEqual({ box: null, anchor: { x: 300, y: 800 }, marker: { x: 300, y: 800 } });
   });
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0 (2026-10-19)
+
+- **Tap two corners to make a box.** On the region screen, tap one corner (a small square marks it), then the opposite one: quicker than dragging on e-ink, where the box lags behind your pen. Dragging still works; tap a corner of the box, then tap elsewhere, to move that corner.
+- **Undo last snap** (Notes toolbar → plugins): takes back the last paste into your note (picture, ink, link or caption, and the page if it made one) or the last Snaps inbox page. It only removes what SnapMark added, and only while it's still as the snap left it; a snap that made its own note is never deleted, Undo just tells you which one it was.
+- For developers: the device test makes one region box with two taps and undoes a paste, checking the note is exactly as before.
+
 ## 0.14.3 (2026-10-18)
 
 - **Handwriting and highlights land in the right place with a Nomad turned sideways.** 0.14.2 cut the right part of the page but shrank the ink towards the top-left, because the Nomad's document app reports it differently from the Manta's when sideways. SnapMark now reads it through Notes in that case, which reports it the same way on every device.

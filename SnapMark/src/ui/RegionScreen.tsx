@@ -2,7 +2,8 @@
 // keep. Shown as a plugin screen, so NOTE and DOC turn the pen's drawing off while it's up and pen strokes
 // arrive here as touches.
 // E-ink: a plain black outline with corner handles. While dragging, only the box view is updated
-// (setNativeProps), not the whole screen; React catches up when the finger lifts.
+// (setNativeProps), not the whole screen; React catches up when the finger lifts. Dragging lags on
+// e-ink, so two taps make a box too: one corner, then the opposite one (core/region tapBox).
 
 import React, { useMemo, useRef, useState } from 'react';
 import { Image, PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -15,6 +16,8 @@ import {
   isBigEnough,
   MIN_BOX_DP,
   oppositeCorner,
+  TAP_SLOP_DP,
+  tapBox,
   type Point,
 } from '../core/region';
 import { answerRegion, type RegionChoice, type RegionRequest } from '../features/region';
@@ -23,6 +26,7 @@ import { Button, INK, PAPER } from './components';
 const CORNER_REACH_DP = 40;
 const REDRAW_STEP_DP = 4;
 const HANDLE_DP = 18;
+const MARKER_DP = 28;
 const NO_BOX: Rect = { left: 0, top: 0, right: 0, bottom: 0 };
 
 function at(r: Rect) {
@@ -46,6 +50,12 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
   const [frame, setFrame] = useState<Rect | null>(null);
   const [box, setBox] = useState<Rect | null>(null);
   const [busy, setBusy] = useState(false);
+  // Two taps: the corner waiting for its partner, and whether it was picked up from the box.
+  const [waiting, setWaiting] = useState<'new' | 'move' | null>(null);
+  const tapAnchor = useRef<Point | null>(null);
+  const markerView = useRef<View>(null);
+  const press = useRef<Point | null>(null);
+  const dragging = useRef(false);
   // The responder callbacks are created once; they read the latest values through refs.
   const frameRef = useRef<Rect | null>(null);
   const boxRef = useRef<Rect | null>(null);
@@ -63,6 +73,56 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
     }
   };
 
+  const hideBox = () => {
+    // React may see no change (no box before, none now), so hide it directly too.
+    try {
+      boxView.current?.setNativeProps({ style: { opacity: 0 } });
+    } catch {}
+  };
+
+  const showMarker = (p: Point | null) => {
+    try {
+      markerView.current?.setNativeProps({
+        style: p ? { left: p.x - MARKER_DP / 2, top: p.y - MARKER_DP / 2, opacity: 1 } : { opacity: 0 },
+      });
+    } catch {}
+  };
+
+  /** A tap: a corner of a new box, the corner that closes it, or picking up / putting down a corner. */
+  const tap = (p: Point) => {
+    const before = boxRef.current;
+    const next = tapBox({ box: before, anchor: tapAnchor.current, marker: null }, p, CORNER_REACH_DP, MIN_BOX_DP);
+    tapAnchor.current = next.anchor;
+    showMarker(next.marker);
+    if (next.box && next.box !== before) {
+      draw(next.box);
+    } else if (!next.box) {
+      boxRef.current = null;
+      hideBox();
+    }
+    setBox(next.box);
+    setWaiting(next.anchor ? (next.box ? 'move' : 'new') : null);
+  };
+
+  /** A drag begins at `p` (where the pen came down): adjust the corner there, or start a new box. */
+  const startDrag = (p: Point) => {
+    dragging.current = true;
+    tapAnchor.current = null;
+    showMarker(null);
+    setWaiting(null);
+    const current = boxRef.current;
+    const opposite = current ? oppositeCorner(current, p, CORNER_REACH_DP) : null;
+    anchor.current = opposite ?? p;
+    lastDrawn.current = p;
+    if (!opposite) {
+      draw(boxFrom(p, p));
+    }
+  };
+
+  // The responder below is created once: it calls these through a ref.
+  const gestures = useRef({ tap, startDrag });
+  gestures.current = { tap, startDrag };
+
   const onLayout = (e: LayoutChangeEvent) => {
     const area: Size = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
     const f = containFrame(area, capture);
@@ -77,25 +137,27 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: e => {
           const f = frameRef.current;
-          if (!f) {
-            return;
-          }
-          const p = clampPoint({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, f);
-          const current = boxRef.current;
-          // Near a corner of the current box: adjust it. Anywhere else: start a new box.
-          const opposite = current ? oppositeCorner(current, p, CORNER_REACH_DP) : null;
-          anchor.current = opposite ?? p;
-          lastDrawn.current = p;
-          if (!opposite) {
-            draw(boxFrom(p, p));
-          }
+          // Nothing changes yet: a press that hardly moves is a tap, anything else a drag.
+          press.current = f ? clampPoint({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, f) : null;
+          dragging.current = false;
         },
         onPanResponderMove: e => {
           const f = frameRef.current;
-          if (!f || !anchor.current) {
+          const start = press.current;
+          if (!f || !start) {
             return;
           }
           const p = clampPoint({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, f);
+          if (!dragging.current) {
+            if (Math.abs(p.x - start.x) < TAP_SLOP_DP && Math.abs(p.y - start.y) < TAP_SLOP_DP) {
+              return;
+            }
+            // Near a corner of the current box: adjust it. Anywhere else: start a new box.
+            gestures.current.startDrag(start);
+          }
+          if (!anchor.current) {
+            return;
+          }
           const last = lastDrawn.current;
           if (last && Math.abs(p.x - last.x) < REDRAW_STEP_DP && Math.abs(p.y - last.y) < REDRAW_STEP_DP) {
             return;
@@ -104,15 +166,21 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
           draw(boxFrom(anchor.current, p));
         },
         onPanResponderRelease: () => {
+          const start = press.current;
+          press.current = null;
+          if (!dragging.current) {
+            if (start) {
+              gestures.current.tap(start);
+            }
+            return;
+          }
+          dragging.current = false;
           anchor.current = null;
           const current = boxRef.current;
           const keep = current && isBigEnough(current, MIN_BOX_DP) ? current : null;
           boxRef.current = keep;
           if (!keep) {
-            // React may see no change (no box before, none now), so hide the slip directly too.
-            try {
-              boxView.current?.setNativeProps({ style: { opacity: 0 } });
-            } catch {}
+            hideBox();
           }
           setBox(keep);
         },
@@ -127,9 +195,13 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
 
   const hint = busy
     ? 'Snapping…'
-    : box
-      ? 'Drag a corner to adjust it, or drag elsewhere to start over.'
-      : 'Drag over the part you want to keep.';
+    : waiting === 'new'
+      ? 'Now tap the opposite corner.'
+      : waiting === 'move'
+        ? 'Tap where this corner should go.'
+        : box
+          ? 'Drag or tap a corner to adjust it, or start over elsewhere.'
+          : 'Drag over the part you want, or tap two corners.';
 
   return (
     <View style={s.screen}>
@@ -153,6 +225,7 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
           <View style={[s.handle, { left: -HANDLE_DP / 2, bottom: -HANDLE_DP / 2 }]} />
           <View style={[s.handle, { right: -HANDLE_DP / 2, bottom: -HANDLE_DP / 2 }]} />
         </View>
+        <View ref={markerView} pointerEvents="none" style={[s.marker, s.hidden]} />
       </View>
     </View>
   );
@@ -179,4 +252,5 @@ const s = StyleSheet.create({
   shown: { opacity: 1 },
   hidden: { opacity: 0 },
   handle: { position: 'absolute', width: HANDLE_DP, height: HANDLE_DP, backgroundColor: INK },
+  marker: { position: 'absolute', left: 0, top: 0, width: MARKER_DP, height: MARKER_DP, backgroundColor: INK },
 });

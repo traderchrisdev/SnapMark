@@ -23,6 +23,7 @@ import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { setRoute } from '../ui/route';
 
 import { snapScreenshot, type DocPage } from './annotateScreenshot';
+import { beginAdding, forgetSnap, lastNumInPage, recordInserted } from './undo';
 import { reloadAndShow } from './inbox';
 import type { RegionChoice } from './region';
 
@@ -219,6 +220,7 @@ async function placeOnPage(
   tmp: string,
 ): Promise<{ page: number; newPage: boolean }> {
   await Sn.saveOpenNote();
+  const pagesBefore = await Sn.noteTotalPages(notePath).catch(() => -1);
   const size = await Sn.pageSize(notePath, page);
   const stamp = Date.now();
   const render = `${tmp}/${CAPTURE_PREFIX}${stamp}-note.png`;
@@ -251,6 +253,13 @@ async function placeOnPage(
     }
     await Sn.insertNotePage(notePath, target, background);
   }
+  // For Undo: what was on the page before (a new page has nothing).
+  const before = plan.newPage ? 0 : await lastNumInPage(notePath, target).catch(() => -1);
+  if (before >= 0 && pagesBefore > 0) {
+    beginAdding('paste', notePath, target, before, plan.newPage, pagesBefore + (plan.newPage ? 1 : 0));
+  } else {
+    forgetSnap();
+  }
   const elements = [await Sn.newPictureElement(image.path, plan.rect, target)];
   let text: Element | null = null;
   let ink: Element[] = [];
@@ -277,13 +286,16 @@ async function placeOnPage(
     }
     const extras = [...ink, ...(text ? [text] : [])];
     try {
-      await Sn.insertElements(notePath, target, [elements[0], ...ink, ...elements.slice(1), ...(text ? [text] : [])]);
+      const all = [elements[0], ...ink, ...elements.slice(1), ...(text ? [text] : [])];
+      await Sn.insertElements(notePath, target, all);
+      recordInserted(notePath, target, all);
     } catch (e) {
       if (!extras.length) {
         throw e;
       }
       logError(`paste: insert with ${ink.length} strokes${text ? ' and the caption' : ''} (pasting without them)`, e);
       await Sn.insertElements(notePath, target, elements);
+      recordInserted(notePath, target, elements);
       if (ink.length) {
         toast('Pasted, but your handwriting could not be added.', true);
       }
@@ -369,6 +381,7 @@ async function addLateInk(notePath: string, d: Delivery, settings: Settings): Pr
       }
       await Sn.saveOpenNote().catch(e => logError('save before adding ink', e));
       await Sn.insertElements(notePath, page, ink);
+      recordInserted(notePath, page, ink);
     }
     log(`late ink: ${ink.length} strokes into ${baseName(notePath)} page ${page + 1}`);
   } catch (e) {

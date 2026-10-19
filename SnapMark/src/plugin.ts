@@ -6,6 +6,7 @@ import { captureFromBubble, startBubble } from './features/bubble';
 import { exportCurrentPage } from './features/exportPng';
 import { snapPage } from './features/snapPage';
 import { snapRegion } from './features/snapRegion';
+import { undoLastSnap } from './features/undo';
 import { log, logError } from './platform/log';
 import { hasFilePermissions } from './platform/permissions';
 import { loadSettings, storedSettingEntries } from './platform/settingsStore';
@@ -22,7 +23,8 @@ const BUTTON_ANNOTATE_SCREENSHOT = 2;
 const BUTTON_EXPORT_PNG = 3;
 const BUTTON_INSERT_SCREENSHOT = 4;
 const BUTTON_SNAP_REGION = 5;
-const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION]);
+const BUTTON_UNDO_SNAP = 6;
+const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION, BUTTON_UNDO_SNAP]);
 
 // One run at a time, from the toolbar buttons or the floating button. A run whose native call never
 // answers must not lock them forever.
@@ -47,6 +49,9 @@ async function run(id: number): Promise<void> {
       return;
     case BUTTON_EXPORT_PNG:
       await exportCurrentPage();
+      return;
+    case BUTTON_UNDO_SNAP:
+      await undoLastSnap();
       return;
     case BUTTON_ANNOTATE_SCREENSHOT:
     case BUTTON_INSERT_SCREENSHOT: {
@@ -89,6 +94,7 @@ export interface Icons {
   annotateScreenshot: string;
   exportPng: string;
   insertScreenshot: string;
+  undoSnap: string;
 }
 
 export async function startPlugin(icons: Icons): Promise<void> {
@@ -122,9 +128,15 @@ export async function startPlugin(icons: Icons): Promise<void> {
     icon: icons.insertScreenshot,
     showType: SHOW_NO_UI,
   });
+  const undo = await PluginManager.registerButton(TOOLBAR, ['NOTE'], {
+    id: BUTTON_UNDO_SNAP,
+    name: 'Undo last snap',
+    icon: icons.undoSnap,
+    showType: SHOW_NO_UI,
+  });
   log(
     `registered "Snap page": ${String(snap)}, "Snap region": ${String(region)}, "Annotate screenshot": ${String(shot)}, ` +
-      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}`,
+      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}, "Undo last snap": ${String(undo)}`,
   );
   // Shows whether settings survived a plugin update (they live in the plugin's private dir).
   storedSettingEntries().then(

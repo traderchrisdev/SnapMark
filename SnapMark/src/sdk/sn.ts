@@ -120,6 +120,10 @@ export const Sn = {
   /** NOTE only: write NOTE's in-memory edits of the open note to disk before file-level edits. */
   saveOpenNote: () => callOk('saveCurrentNote', PluginNoteAPI.saveCurrentNote()),
 
+  /** Remove elements from a page at file level, by their numInPage. */
+  deleteElements: (notePath: string, page: number, numsInPage: number[]) =>
+    callOk('deleteElements', PluginFileAPI.deleteElements(notePath, page, numsInPage)),
+
   /** NOTE only. */
   removeNotePage: (notePath: string, page: number) => callOk('removeNotePage', PluginFileAPI.removeNotePage(notePath, page)),
 

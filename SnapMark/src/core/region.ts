@@ -54,6 +54,34 @@ export function oppositeCorner(box: Rect, p: Point, reach: number): Point | null
   return null;
 }
 
+/** A press that moves less than this (dp) is a tap: it sets a corner instead of dragging a box. */
+export const TAP_SLOP_DP = 12;
+
+/**
+ * Two taps make a box, as fast as a drag on e-ink but without its lag: the first tap marks a corner,
+ * the second the opposite one. A tap on a corner of the current box picks that corner up; the next tap
+ * puts it down. `anchor` is the corner waiting for its partner (null if none).
+ */
+export interface TapState {
+  box: Rect | null;
+  anchor: Point | null;
+  /** Where to show the waiting corner (the tap itself, also when it picked up a corner of the box). */
+  marker: Point | null;
+}
+
+export function tapBox(state: TapState, p: Point, reach: number, min: number): TapState {
+  if (state.anchor) {
+    const box = boxFrom(state.anchor, p);
+    // Too small (a second tap on the same spot): keep waiting for the opposite corner.
+    return isBigEnough(box, min) ? { box, anchor: null, marker: null } : state;
+  }
+  const opposite = state.box ? oppositeCorner(state.box, p, reach) : null;
+  if (opposite) {
+    return { box: state.box, anchor: opposite, marker: p };
+  }
+  return { box: null, anchor: p, marker: p };
+}
+
 export function isBigEnough(box: Rect, min: number): boolean {
   return box.right - box.left >= min && box.bottom - box.top >= min;
 }
