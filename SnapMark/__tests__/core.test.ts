@@ -1,4 +1,5 @@
 import { alignSameLine } from '../src/core/highlights';
+import { linesInRows, searchTextOf, snapKeyword, textBandsOnly, textLines } from '../src/core/searchText';
 import { classifyApp, DOC_PACKAGE, NOTE_PACKAGE, PLUGIN_HOST_PACKAGE } from '../src/core/apps';
 import { fromEmr, toEmr } from '../src/core/emr';
 import { backlinkSpec, backlinkSpecTop, captionText, captionUnder, LINK_TYPE_DOCUMENT, linkUnder, linkZone, stripShrink } from '../src/core/backlink';
@@ -645,5 +646,28 @@ describe('two taps make a box', () => {
   it('starts over when the tap is away from the box\'s corners', () => {
     const box = { left: 100, top: 100, right: 500, bottom: 300 };
     expect(tapBox({ box, anchor: null, marker: null }, { x: 300, y: 800 }, 40, 24)).toEqual({ box: null, anchor: { x: 300, y: 800 }, marker: { x: 300, y: 800 } });
+  });
+});
+
+describe('searchable snaps', () => {
+  const page = 'SnapMark test  -  1  Margins\n\nHighlight lines 03 and 07.\n\nLine 01  fox\n\nLine 02  dog \nLine 03  figs\n';
+  it('reads the page text as its lines', () => {
+    expect(textLines(page)).toEqual(['SnapMark test  -  1  Margins', 'Highlight lines 03 and 07.', 'Line 01  fox', 'Line 02  dog', 'Line 03  figs']);
+    expect(snapKeyword('Walden', 1)).toBe('Walden p. 2');
+  });
+  it('picks the lines inside the box when the lines and the bands pair up', () => {
+    const lines = textLines(page);
+    const bands = [{ top: 60, bottom: 100 }, { top: 130, bottom: 150 }, { top: 200, bottom: 230 }, { top: 260, bottom: 290 }, { top: 320, bottom: 350 }];
+    expect(linesInRows(lines, bands, 190, 300)).toEqual(['Line 01  fox', 'Line 02  dog']);
+    expect(linesInRows(lines, bands, 400, 500)).toBeNull();
+    expect(linesInRows(lines, bands.slice(1), 190, 300)).toBeNull(); // one band short: can't tell which is which
+  });
+  it('drops rules and frame edges from the render\'s lines', () => {
+    const bands = [{ top: 100, bottom: 130 }, { top: 150, bottom: 152 }, { top: 170, bottom: 199 }, { top: 220, bottom: 248 }];
+    expect(textBandsOnly(bands)).toEqual([bands[0], bands[2], bands[3]]);
+    expect(textBandsOnly([])).toEqual([]);
+  });
+  it('keeps the stored text to a text box\'s worth', () => {
+    expect(searchTextOf(['a'.repeat(5000), 'b'.repeat(5000)]).length).toBe(6000);
   });
 });

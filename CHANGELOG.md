@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0 (2026-10-19)
+
+- **Searchable snaps.** A snap from a PDF or EPUB now carries a `Book p. N` keyword and the text it shows, on a hidden layer of its page, so Supernote's Search finds it: Search → Keyword by book and page, Search → Text by any word in it. A region snap keeps the lines inside your box (or its page's text when the lines can't be told apart, as in two columns). A paste into your own note gets the keyword only, and Undo last snap takes it off again. On by default; **Searchable snaps** in the settings turns it off.
+- For developers: the device test checks every page and region snap gets its keyword and text.
+
 ## 0.15.0 (2026-10-19)
 
 - **Tap two corners to make a box.** On the region screen, tap one corner (a small square marks it), then the opposite one: quicker than dragging on e-ink, where the box lags behind your pen. Dragging still works; tap a corner of the box, then tap elsewhere, to move that corner.

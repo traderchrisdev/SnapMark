@@ -12,6 +12,7 @@ SnapMark is a free, open-source plugin for Supernote e-ink devices. Website: **[
 - **Export page as PNG:** the current note page, with your writing, saved as an image.
 - **Paste into your note (optional):** a region snap goes onto the page of the note you're working in, with your handwriting as real ink and a link back to the PDF page.
 - **Snaps inbox (optional):** collect every snap as the next page of one notebook instead of a note each.
+- **Searchable snaps:** a snap from a PDF or EPUB carries a `Book p. N` keyword and the text it shows (on a hidden layer), so Supernote's Search finds it.
 - **Undo last snap** (in Notes): takes back the last paste or inbox page.
 
 Everything stays on your device: no account, no internet access.

@@ -601,6 +601,51 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         }).start();
     }
 
+    /**
+     * The text lines of a page render, top to bottom (searchable snaps): runs of rows with at least
+     * `minDark` dark pixels across the whole width (a frame's thin sides don't count), joined over gaps
+     * of up to 2 blank rows. Each is {top, bottom}.
+     */
+    @ReactMethod
+    public void textBands(String path, int minDark, Promise promise) {
+        new Thread(() -> {
+            try {
+                Bitmap bm = BitmapFactory.decodeFile(path);
+                if (bm == null) throw new IOException("cannot decode " + path);
+                int w = bm.getWidth(), h = bm.getHeight();
+                int[] row = new int[w];
+                WritableArray out = Arguments.createArray();
+                int top = -1, last = -1;
+                for (int y = 0; y < h; y++) {
+                    bm.getPixels(row, 0, w, 0, y, w, 1);
+                    int dark = 0;
+                    for (int c : row) if (luma(c) < DARK) dark++;
+                    if (dark >= minDark) {
+                        if (top < 0) top = y;
+                        last = y;
+                    } else if (top >= 0 && y - last > 2) {
+                        WritableMap b = Arguments.createMap();
+                        b.putInt("top", top);
+                        b.putInt("bottom", last);
+                        out.pushMap(b);
+                        top = -1;
+                    }
+                }
+                if (top >= 0) {
+                    WritableMap b = Arguments.createMap();
+                    b.putInt("top", top);
+                    b.putInt("bottom", last);
+                    out.pushMap(b);
+                }
+                bm.recycle();
+                promise.resolve(out);
+            } catch (Throwable e) {
+                Log.e(TAG, "textBands failed", e);
+                promise.reject("E_BANDS", e.toString(), e);
+            }
+        }).start();
+    }
+
     /** The display's rotation (Surface.ROTATION_*: 0 portrait, 1 or 3 sideways, 2 upside down). */
     @ReactMethod
     public void displayRotation(Promise promise) {

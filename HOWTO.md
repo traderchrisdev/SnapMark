@@ -87,10 +87,19 @@ Things to know:
 - **Whole screen** from the floating button pastes the whole screen. In a PDF or EPUB, **Whole page** and Snap page still make a note of their own, as do the screenshot buttons.
 - **After a snap → Stay here** pastes and brings you back to the app or document you were in.
 
+## Find your snaps with Search
+
+With **Searchable snaps** on (the default), a snap from a PDF or EPUB carries what it shows, so Supernote's own **Search** finds it later:
+- a **keyword** with the book and page, like `Walden p. 2`: Search → **Keyword**, or the note's keyword list;
+- the **text** of what you snapped, on a hidden layer of the snap's page (the page looks the same): Search → **Text** finds the snap by any word in it. For a region, SnapMark keeps the lines inside your box; when it can't tell exactly which lines those are (two columns, a framed quote), it keeps the whole page's text, so the snap is still found by the words of its page.
+- A paste into the note you're working in gets the keyword only: SnapMark doesn't add layers to your own pages.
+
+Scanned PDFs have no text, so their snaps get the keyword alone, as do margin-mode snaps with **After a snap → Stay here** (the hidden text needs Notes to have the note open). Turn it off in SnapMark's settings under **Searchable snaps**.
+
 ## Undo last snap
 
 Pasted the wrong part, or into the wrong note? In Notes, open the toolbar's plugins menu and tap **Undo last snap**. It takes back the last snap that went into a notebook you already had:
-- **a paste** into the note you're working in: the picture, its ink and its link or caption are removed (and the page, if the paste had made one);
+- **a paste** into the note you're working in: the picture, its ink, its link or caption and its keyword are removed (and the page, if the paste had made one);
 - **a Snaps inbox page**: the page is removed.
 
 It only removes what SnapMark added, and only while that's still as the snap left it. If you've written on that page or added pages since, it leaves everything as it is and says so. A snap that made a note of its own isn't deleted (SnapMark never deletes your files): Undo tells you which note it was, and you can delete it in Files. Undo remembers only the last snap, and forgets it when the plugin restarts.

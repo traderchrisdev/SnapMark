@@ -12,7 +12,8 @@ import type { Element } from 'sn-plugin-lib';
 import type { Rect, Size } from '../core/backlink';
 import { alignSameLine, LINE_BOTTOM_SEARCH_PX, SAME_LINE_PX, UNDERLINE_PRESSURE } from '../core/highlights';
 import { inNote, scalePoints, scaleThicknessBy, type DocFrames, type MarginLayout } from '../core/margin';
-import { isDocumentPath, tmpDir } from '../core/paths';
+import { docTitle, isDocumentPath, tmpDir } from '../core/paths';
+import { snapKeyword } from '../core/searchText';
 import { captureToPage, mapToRegion, mostlyInside, regionScale } from '../core/region';
 import { fitInsetsDp } from '../core/fit';
 import type { Settings } from '../core/settings';
@@ -25,6 +26,7 @@ import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import type { DocPage } from './annotateScreenshot';
 import { askForRegion, type RegionChoice } from './region';
+import { pageSearchable, readDocText, regionSearchable, type Searchable } from './searchable';
 import { docFramesOf, documentPageSize, isLastPage, isSideways, markerInfos, normalizeRender, readHandwriting, scrolledView, snapPage, underlinesFrom, type Handwriting } from './snapPage';
 
 /** Lets the plugin menu that held the button close before the screen is captured. */
@@ -96,6 +98,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   let choice: RegionChoice = null;
   let strokes: Element[] = [];
   let lateInk: (() => Promise<Element[]>) | undefined;
+  let search: Searchable | null = null;
   let isPortrait = pageSize.height >= pageSize.width;
   try {
     choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole page');
@@ -114,6 +117,8 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
         frames = await scrolledView(frames, raw, render);
         const renderCrop = mapRect(crop, frames.viewToRender);
         const dst = await placeRegion(render, out, renderCrop, pageSize, settings);
+        // The page's text for search: DOC is still underneath the region screen (getCurrentDocText).
+        search = await regionSearchable(settings, docPath, page, await readDocText(settings, page), render, renderCrop);
         const inkCrop = mapRect(crop, frames.viewToInk);
         if (frames.landscape || frames.rotated) {
           log(`snap region: ${frames.rotated ? 'sideways screen' : 'landscape page'}; box ${JSON.stringify(crop)} -> render ${JSON.stringify(renderCrop)} -> ${JSON.stringify(dst)}`);
@@ -133,6 +138,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
           Sn.recycle([...read.strokes, ...read.markers]);
         }
         await placeRegion(raw, out, box, shot, settings);
+        search = pageSearchable(settings, docPath, page, await readDocText(settings, page));
         isPortrait = shot.height >= shot.width;
       }
       t.mark(`cut (${strokes.length} strokes)`);
@@ -157,7 +163,7 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   try {
     await deliverToNote(
       'snap region',
-      { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes, inkPageSize: pageSize, lateInk },
+      { page: out, takenAt, isPortrait, front, doc: { docPath, page }, elements: strokes, inkPageSize: pageSize, lateInk, search },
       settings,
       pluginDir,
       t,
@@ -187,6 +193,7 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
         await normalizeRender(render, pageSize, frames);
         frames = await scrolledView(frames, from.raw, render);
         pasted = await cutRegion(render, out, mapRect(crop, frames.viewToRender));
+        pasted.keyword = settings.searchable ? snapKeyword(docTitle(doc.docPath), doc.page) : undefined;
         if (settings.includeHandwriting) {
           // Read with NOTE in front: upright even on a sideways screen (R83).
           const noteFrames = inNote(frames);
@@ -196,6 +203,7 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
         }
       } else {
         pasted = await cutRegion(from.raw, out, box);
+        pasted.keyword = settings.searchable ? snapKeyword(docTitle(doc.docPath), doc.page) : undefined;
       }
     }
   } finally {

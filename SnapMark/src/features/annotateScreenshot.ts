@@ -31,6 +31,7 @@ import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { assertUnlocked, firstFreePath } from './files';
+import { addSearchable, type Searchable } from './searchable';
 import { beginAdding, recordInserted, rememberNewNote } from './undo';
 import { appendToClosedInbox, appendToOpenInbox, reloadAndShow } from './inbox';
 import { refillPool } from './pool';
@@ -100,6 +101,8 @@ export interface SnapScreenshotOptions {
   elements?: Element[];
   /** The page size the ink was made for; it is left out if the page differs (its EMR range would, R77). */
   inkPageSize?: Size;
+  /** Keyword and text for search (a region of a document). */
+  search?: Searchable | null;
 }
 
 /** What goes onto the new page besides its image. */
@@ -107,9 +110,11 @@ interface PageExtras {
   backlink?: DocPage;
   elements?: Element[];
   inkPageSize?: Size;
+  /** Keyword and text for search (a region of a document). */
+  search?: Searchable | null;
 }
 
-const hasExtras = (x: PageExtras) => !!x.backlink || !!x.elements?.length;
+const hasExtras = (x: PageExtras) => !!x.backlink || !!x.elements?.length || !!x.search;
 
 export interface DocPage {
   docPath: string;
@@ -261,8 +266,13 @@ async function addToPage(notePath: string, notePage: number, extras: PageExtras)
       link = await Sn.newLinkElement(backlinkSpec(from.docPath, docTitle(from.docPath), from.page, size), notePage);
     }
     const all = link ? [...ink, link] : ink;
-    await Sn.insertElements(notePath, notePage, all);
-    recordInserted(notePath, notePage, all);
+    if (all.length) {
+      await Sn.insertElements(notePath, notePage, all);
+      recordInserted(notePath, notePage, all);
+    }
+    if (extras.search) {
+      await addSearchable(notePath, notePage, extras.search, size ?? (await Sn.pageSize(notePath, notePage)));
+    }
   } catch (e) {
     logError('add ink/link to the new page (note kept without them)', e);
     toast(ink.length ? 'Saved, but your ink and the link back could not be added.' : 'Saved, but the link back to the page could not be added.', true);

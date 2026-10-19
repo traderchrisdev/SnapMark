@@ -5,6 +5,7 @@
 import { NativeModules } from 'react-native';
 import type { Rect, Size } from '../core/backlink';
 import type { Insets } from '../core/fit';
+import type { Band } from '../core/searchText';
 import { SnApiError } from '../sdk/errors';
 
 export interface FittedImage {
@@ -80,6 +81,7 @@ interface Spec {
   pdfPageSize(path: string, page: number): Promise<Size>;
   imageSize(path: string): Promise<Size>;
   displayRotation(): Promise<number>;
+  textBands(path: string, minDark: number): Promise<Band[]>;
   findScroll(capturePath: string, renderPath: string, m: ScrollSearch): Promise<ScrollFound>;
   letterbox(srcPath: string, outPath: string, width: number, height: number): Promise<boolean>;
   releasePenLock(): Promise<boolean>;
@@ -131,6 +133,8 @@ export const Native = {
   /** `src` fitted and centred on a white image of the given size. */
   letterbox: (srcPath: string, outPath: string, width: number, height: number) =>
     call('letterbox', m => m.letterbox(srcPath, outPath, width, height)),
+  /** A page render's text lines, top to bottom (searchable snaps). */
+  textBands: (path: string, minDark: number) => call('textBands', m => m.textBands(path, minDark)),
   /** The display's rotation: 0 portrait, 1 or 3 sideways (R83). */
   displayRotation: () => call('displayRotation', m => m.displayRotation()),
   /** How far DOC has scrolled a page shown zoomed on a sideways screen (R83). */

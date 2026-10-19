@@ -23,7 +23,8 @@ import { ensureStillCurrent, waitUntilCurrent } from '../sdk/wait';
 import { setRoute } from '../ui/route';
 
 import { snapScreenshot, type DocPage } from './annotateScreenshot';
-import { beginAdding, forgetSnap, lastNumInPage, recordInserted } from './undo';
+import { addPasteKeyword, type Searchable } from './searchable';
+import { beginAdding, forgetSnap, lastNumInPage, recordInserted, recordKeyword } from './undo';
 import { reloadAndShow } from './inbox';
 import type { RegionChoice } from './region';
 
@@ -79,6 +80,8 @@ export interface Delivery {
   elements?: Element[];
   /** The page size that ink was made for. */
   inkPageSize?: Size;
+  /** Keyword and text for search (a region of a document; null: Searchable snaps off). */
+  search?: Searchable | null;
   /**
    * Ink that can only be read with NOTE in front (a document's last page, R80): added to the note
    * once it is open. Returns elements in the note page's px; the caller of the callback recycles them.
@@ -111,6 +114,7 @@ export async function deliverToNote(label: string, d: Delivery, settings: Settin
         backlink: d.doc ?? undefined,
         elements: d.elements,
         inkPageSize: d.inkPageSize,
+        search: d.search,
       }),
     );
     t.mark('note');
@@ -142,6 +146,8 @@ export interface Pasted {
    * known (NOTE is in front then, which reads any page's ink, R80). The caller of this recycles them.
    */
   ink?: (dst: Rect, noteSize: Size) => Promise<Element[]>;
+  /** "Book p. N" for search, added to the page with the paste (searchable snaps). */
+  keyword?: string;
 }
 
 /**
@@ -302,6 +308,9 @@ async function placeOnPage(
     }
   } finally {
     Sn.recycle([...elements, ...ink, ...(text ? [text] : [])]);
+  }
+  if (await addPasteKeyword(notePath, target, image.keyword)) {
+    recordKeyword(notePath, target, image.keyword as string);
   }
   await reloadAndShow(plan.newPage ? target : null);
   return { page: target, newPage: plan.newPage };

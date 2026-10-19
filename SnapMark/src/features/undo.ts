@@ -30,6 +30,8 @@ interface AddedToNote {
   ownPage: boolean;
   /** The notebook's page count right after the snap (a page added since shifts the numbering). */
   pages: number;
+  /** A "Book p. N" keyword the snap added to that page (searchable snaps). */
+  keyword?: string;
 }
 
 interface MadeNote {
@@ -76,6 +78,14 @@ export function recordInserted(notePath: string, page: number, elements: Readonl
     }
   }
   log(`undo: ${baseName(r.notePath)} page ${r.page + 1}, elements ${r.nums.join(',')}`);
+}
+
+/** The snap also added this keyword to that page. */
+export function recordKeyword(notePath: string, page: number, keyword: string): void {
+  const r = last;
+  if (r && r.kind !== 'note' && samePath(r.notePath, notePath) && r.page === page) {
+    r.keyword = keyword;
+  }
 }
 
 /** A snap that made a note of its own: Undo points to it rather than deleting it. */
@@ -145,6 +155,18 @@ export async function undoLastSnap(): Promise<void> {
     await Sn.removeNotePage(r.notePath, r.page);
   } else {
     await Sn.deleteElements(r.notePath, r.page, r.nums);
+  }
+  if (r.keyword && !(removePage && pages > 1)) {
+    // The page stays: take the snap's keyword off it too (the last one with that text).
+    try {
+      const kws = (await Sn.keyWords(r.notePath, r.page)).filter(k => k.keyword === r.keyword);
+      const kw = kws[kws.length - 1];
+      if (kw) {
+        await Sn.deleteKeyWord(r.notePath, r.page, kw.index);
+      }
+    } catch (e) {
+      logError('undo: the keyword (left in place)', e);
+    }
   }
   last = null;
   log(`undo: removed ${removePage && pages > 1 ? `page ${r.page + 1}` : `elements ${r.nums.join(',')} on page ${r.page + 1}`} of ${baseName(r.notePath)}`);

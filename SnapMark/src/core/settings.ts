@@ -44,6 +44,8 @@ export interface Settings {
   bubbleAction: BubbleAction;
   /** Which side NOTE's toolbar is on, so screenshot notes are shrunk clear of it ("off": full size). */
   screenshotFit: ScreenshotFit;
+  /** Snaps from a PDF or EPUB carry the page's text (hidden) and a "Book p. N" keyword for search. */
+  searchable: boolean;
 }
 
 export const FRESHNESS_CHOICES = [0, 2, 5, 10, 30, 60] as const;
@@ -60,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bubble: false,
   bubbleAction: 'region',
   screenshotFit: 'left',
+  searchable: true,
 };
 
 export function snapsDir(s: Settings): string {
@@ -95,6 +98,7 @@ const VALIDATE: Validators = {
   bubble: bool,
   bubbleAction: v => (v === 'region' || v === 'whole' ? v : undefined),
   screenshotFit: v => (SCREENSHOT_FITS as readonly unknown[]).includes(v) ? (v as ScreenshotFit) : undefined,
+  searchable: bool,
 };
 
 export function isSettingKey(k: string): k is keyof Settings {

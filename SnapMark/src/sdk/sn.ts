@@ -127,6 +127,20 @@ export const Sn = {
   /** NOTE only. */
   removeNotePage: (notePath: string, page: number) => callOk('removeNotePage', PluginFileAPI.removeNotePage(notePath, page)),
 
+  /** DOC only: the text of a page of the open document, in reading order, without positions. */
+  docPageText: (page: number) => call<string>('getCurrentDocText', PluginDocAPI.getCurrentDocText(page)),
+
+  insertKeyWord: (notePath: string, page: number, keyword: string) =>
+    callOk('insertKeyWord', PluginFileAPI.insertKeyWord(notePath, page, keyword)),
+  keyWords: (notePath: string, page: number) =>
+    call<Array<{ keyword: string; page: number; index: number }>>('getKeyWords', PluginFileAPI.getKeyWords(notePath, [page])),
+  deleteKeyWord: (notePath: string, page: number, index: number) =>
+    callOk('deleteKeyWord', PluginFileAPI.deleteKeyWord(notePath, page, index)),
+
+  /** A layer on one page (ids 1-3; 0 is the main layer, -1 the background). */
+  insertLayer: (notePath: string, page: number, layerId: number, name: string, visible: boolean) =>
+    callOk('insertLayer', PluginFileAPI.insertLayer(notePath, page, { layerId, name, isCurrentLayer: false, isVisible: visible })),
+
   /**
    * Make NOTE re-read the open file after file-level edits. Fire and forget: NOTE reloads, but the
    * call sometimes never answers (SPIKES.md R48); later calls still work.

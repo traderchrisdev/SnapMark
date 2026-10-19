@@ -48,6 +48,7 @@ import { blankNoteAssetPath } from '../platform/assets';
 import { log, logError } from '../platform/log';
 import { Native, type TextBand } from '../platform/native';
 import { uprightScreenPx } from '../platform/screen';
+import { addSearchable, pageSearchable, readDocText, type Searchable } from './searchable';
 import { beginAdding, recordInserted, rememberNewNote } from './undo';
 import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
@@ -81,6 +82,8 @@ interface Snap {
   /** Where the backlink goes, in render px (bottom-left, or top-right when the bottom holds text, R79). */
   link: TextLinkSpec;
   renderSize: Size;
+  /** The keyword and the page's text for search (null: Searchable snaps off). */
+  search: Searchable | null;
 }
 
 /** Dark pixels in a link's spot before it counts as text rather than a blank margin. */
@@ -103,6 +106,8 @@ export async function snapPage(settings: Settings): Promise<void> {
   // DOC reports the page as displayed, which matches the note page on the same device (R3, R16).
   const lastPage = await isLastPage(page);
   const pageSize = await documentPageSize(docPath, page, lastPage);
+  // Read now, with DOC in front (getCurrentDocText).
+  const pageText = await readDocText(settings, page);
   // A page wider than the screen keeps its ink in a sideways frame (R81).
   const frames = await docFramesOf(docPath, page, pageSize);
   const inkFrame = frames.inkToRender;
@@ -206,6 +211,7 @@ export async function snapPage(settings: Settings): Promise<void> {
       inkSize: late ? noteFrames.inkSize : inkSize,
       link,
       renderSize,
+      search: pageSearchable(settings, docPath, page, pageText),
     };
     const stay = settings.afterSnap === 'stay';
     let linked: boolean;
@@ -337,6 +343,8 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
   t.mark(`elements(${strokes.length} strokes)`);
   try {
     await Sn.insertElements(snap.notePath, 0, elements); // allowed in DOC too (R23)
+    // The hidden text layer needs NOTE in front; with a pooled blank from DOC it waits for the open.
+    await addSearchable(snap.notePath, 0, snap.search, noteSize, opened || !blank ? 'all' : 'keyword');
     t.mark('insert');
   } finally {
     Sn.recycle(elements);
@@ -349,6 +357,11 @@ async function viaMargin(snap: Snap, layout: MarginLayout, pluginDir: string, is
     await Sn.openFile(snap.notePath, 0);
     await waitUntilCurrent(snap.notePath);
     t.mark('open');
+    if (blank && snap.search?.text) {
+      await addSearchable(snap.notePath, 0, snap.search, noteSize, 'text');
+      await reloadAndShow(null);
+      t.mark('search text');
+    }
   }
   if (open || opened || !blank) {
     await refillPool(pluginDir); // only possible with NOTE in front
@@ -658,6 +671,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
       await Sn.insertElements(notePath, notePage, all);
       recordInserted(notePath, notePage, all);
       log(`snap page: inserted ${strokes.length} strokes, ${shapes.length} shapes and the link`);
+      await addSearchable(notePath, notePage, snap.search, noteSize);
       return true;
     } catch (e) {
       if (all.length === 1) {

@@ -651,6 +651,8 @@ def cmd_run(args):
         res = Result(f'Snap page {page} ({layout["pages"][page - 1]["name"]})')
         log, path = snap(page)
         res.check(path, 'snap finished', path or 'no "snap page" log line')
+        found = next((l for l in log if l.startswith('searchable: "')), '')
+        res.check(found or not log, 'searchable: keyword and page text', found)
         if path:
             made.append(path)
             local = os.path.join(out_dir, f'page{page}.note')
@@ -673,6 +675,9 @@ def cmd_run(args):
             res = Result(f'Snap region (page {page}, {what})')
             log, path = snap(page, box, taps='taps' in what)
             res.check(path, 'snap finished', path or 'no "snap region" log line')
+            lined = next((l for l in log if l.startswith('searchable: ') and ' in the render -> ' in l), '')
+            found = next((l for l in log if l.startswith('searchable: "')), '')
+            res.check(found or not log, 'searchable: keyword and text', f'{lined}; {found}')
             if path:
                 made.append(path)
                 local = os.path.join(out_dir, f'region-p{page}.note')

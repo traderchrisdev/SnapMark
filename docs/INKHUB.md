@@ -15,6 +15,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > • **Snap page / Snap region** (PDF & EPUB toolbar): the page, or just the part you box, becomes a new note. Your handwriting comes along as real ink you can still erase (last page included), marker highlights become neat underlines under their line, and a "↩ Book, p. N" link, placed where it doesn't cover text, takes you back to the page.
 > • **Floating capture button** (optional, off by default): tap it in any app, drag a box over the part you want, and keep writing a second later. It captures the screen only when you tap it.
 > • **Paste into your note:** a region snap goes onto the page of the note you're working in, below what's there, with your handwriting as real ink and a link back to the PDF page.
+> • **Searchable snaps:** each snap from a PDF or EPUB carries a "Book p. N" keyword and the text it shows (on a hidden layer), so Supernote's Search finds it.
 > • **Undo last snap** takes back the last paste or inbox page.
 > • **Annotate / Insert screenshot**, **Export page as PNG**, a **Snaps inbox** that collects every snap in one notebook, a **margin mode** for writing room, and **Save a log file** for bug reports.
 >
@@ -22,13 +23,14 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.15.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.16.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).
 > - PNG exports go to `EXPORT/`.
 > - SnapMark reads `SCREENSHOT/` and the open document.
 > - It never deletes or overwrites user files. Every file delete is restricted in code to its own private plugin folder (`src/sdk/fs.ts`, `assertPrivate`) and only removes its temporary images.
+> - **Searchable snaps** (a setting, on by default): reads the document page's text with `getCurrentDocText`, then adds `insertKeyWord` and, only in notes SnapMark itself creates (and Snaps inbox pages), a hidden layer (`insertLayer`, `isVisible: false`) holding one text box with that text. A paste into the user's own note gets only the keyword.
 > - **Undo last snap** (only when the user taps it) removes from a note only the elements, or the page, that SnapMark's last snap added there: it journals their numbers as it inserts them and checks they're unchanged first (`src/features/undo.ts`). Everything else in the note is left alone.
 > - There is no `INTERNET` permission and no network code anywhere, in JS or native. (The Android package declares `SYSTEM_ALERT_WINDOW`, for the floating button, and the storage permissions that Supernote's own plugin library adds to every plugin.)
 >

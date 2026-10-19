@@ -170,6 +170,20 @@ export function SettingsScreen() {
         </Section>
       ) : null}
 
+      <Section
+        label="Searchable snaps"
+        hint="Snaps from a PDF or EPUB keep the text you snapped on a hidden layer, and a “Book p. N” keyword: find them with Search (Text or Keyword). A paste into your note gets the keyword."
+      >
+        <Choice
+          options={[
+            { value: true, label: 'On' },
+            { value: false, label: 'Off' },
+          ]}
+          value={settings.searchable}
+          onChange={v => update('searchable', v)}
+        />
+      </Section>
+
       <Section label="Annotate screenshot" hint="Use the newest screenshot directly if it is newer than:">
         <Choice options={freshnessOptions} value={settings.screenshotFreshMinutes} onChange={v => update('screenshotFreshMinutes', v)} />
       </Section>
