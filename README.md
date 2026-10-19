@@ -25,7 +25,7 @@ Everything stays on your device: no account, no internet access.
 
 **[How-to guide](HOWTO.md)**: every feature, the settings, updating, privacy, troubleshooting.
 
-**Requirements:** firmware with plugin support (Chauvet 3.29.43 or later on Manta and Nomad, 2.26.40 or later on A5 X and A6 X). Since 0.13.0 SnapMark is built with Supernote's plugin library 0.1.65, which every firmware with plugin support accepts; if yours still says SnapMark "is not compatible with the current system version", please [report it](https://github.com/traderchrisdev/SnapMark/issues/new/choose). **Tested on a Manta only;** other models should work but are untested.
+**Requirements:** firmware with plugin support (Chauvet 3.29.43 or later on Manta and Nomad, 2.26.40 or later on A5 X and A6 X). Since 0.13.0 SnapMark is built with Supernote's plugin library 0.1.65, which every firmware with plugin support accepts; if yours still says SnapMark "is not compatible with the current system version", please [report it](https://github.com/traderchrisdev/SnapMark/issues/new/choose). **Works on the Manta and the Nomad:** every release is tested on a Manta, and a Nomad owner has confirmed it there. The A5 X and A6 X should work but are untested.
 
 ## For developers
 

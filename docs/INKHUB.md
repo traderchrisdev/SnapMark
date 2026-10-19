@@ -17,7 +17,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > • **Paste into your note:** a region snap goes onto the page of the note you're working in, below what's there, with your handwriting as real ink and a link back to the PDF page.
 > • **Annotate / Insert screenshot**, **Export page as PNG**, a **Snaps inbox** that collects every snap in one notebook, a **margin mode** for writing room, and **Save a log file** for bug reports.
 >
-> Asks only for file access and has no internet access: nothing leaves your device. Works on firmware with plugin support (built with Supernote's plugin library 0.1.65). Free and open source (MIT). Tested on Manta, used on Nomad. Guide and FAQ: snapmark.ink
+> Asks only for file access and has no internet access: nothing leaves your device. Works on firmware with plugin support (built with Supernote's plugin library 0.1.65). Free and open source (MIT). Works on Manta and Nomad. Guide and FAQ: snapmark.ink
 
 ## Note for the reviewer
 

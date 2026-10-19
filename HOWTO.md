@@ -25,7 +25,7 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 ## What you need
 
 - **A Supernote with plugin support.** The firmware must have the plugin system: **Chauvet 3.29.43 or later** on Manta and Nomad, or **2.26.40 or later** on A5 X and A6 X. You can check your version in the device's Settings. Since 0.13.0 SnapMark is built with Supernote's plugin library 0.1.65, which every such firmware accepts (0.12.0 used the newer 0.2.3, which some firmware refused).
-- **Tested devices:** SnapMark is tested on a **Manta** only. It's written to work on other models, but they are untested. Reports are welcome.
+- **Tested devices:** **Manta** and **Nomad**. Every release is tested on a Manta, and a Nomad owner has confirmed it there, upright and turned sideways. It's written to work on the A5 X and A6 X too, but they are untested. Reports are welcome.
 
 ## Install
 
@@ -211,7 +211,7 @@ If the button is still on screen after uninstalling, tap it once or restart the 
 
 ## Known limitations
 
-- **Devices:** tested on a Manta only.
+- **Devices:** tested on a Manta and confirmed on a Nomad; the A5 X and A6 X are untested.
 - **Not yet tested on the device:**
   - landscape captures;
   - "Stay here" and the inbox with the floating button.

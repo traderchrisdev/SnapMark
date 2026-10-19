@@ -3,19 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SnapMark: snap anything on your Supernote into a note</title>
-  <meta name="description" content="A free, open-source Supernote plugin. Tap a floating button in any app, drag a box over the part you want, and write on it, in a new note or the one you're working in. PDF snaps keep your handwriting as editable ink.">
+  <title>SnapMark: Supernote plugin to snap PDFs and screens into notes</title>
+  <meta name="description" content="Free, open-source Supernote plugin for Manta and Nomad. Snap a screen, PDF or EPUB region into a note you can write on; your handwriting stays editable ink.">
   <link rel="canonical" href="https://snapmark.ink/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SnapMark">
+  <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://snapmark.ink/">
   <meta property="og:title" content="SnapMark for Supernote">
-  <meta property="og:description" content="Turn anything on your Supernote screen into a note you can write on. Free and open source.">
+  <meta property="og:description" content="Turn anything on your Supernote screen into a note you can write on. Free and open source, for Manta and Nomad.">
   <meta property="og:image" content="https://snapmark.ink/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="SnapMark: a region of a PDF page snapped into a Supernote note, with the reader's handwriting kept as ink.">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SnapMark",
+    "description": "A free, open-source plugin for Supernote e-ink tablets (Manta and Nomad). Snap a screen, PDF or EPUB region into a note you can write on; handwriting and highlights stay editable ink, with a link back to the page.",
+    "url": "https://snapmark.ink/",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Supernote (Chauvet firmware with plugin support)",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://opensource.org/licenses/MIT",
+    "downloadUrl": "https://github.com/traderchrisdev/SnapMark/releases/latest",
+    "softwareHelp": "https://github.com/traderchrisdev/SnapMark/blob/main/HOWTO.md",
+    "codeRepository": "https://github.com/traderchrisdev/SnapMark",
+    "image": "https://snapmark.ink/og.png",
+    "screenshot": "https://snapmark.ink/img/step-3-note.png",
+    "author": { "@type": "Person", "name": "Cristian Mateescu" }
+  }
+  </script>
   <link rel="stylesheet" href="/style.css">
   <script src="/theme-init.js"></script>
 </head>
@@ -45,13 +70,13 @@
     <section class="hero">
       <div class="hero-text">
         <p class="kicker">A free plugin for Supernote</p>
-        <h1>Turn anything on your screen into a note you can write on.</h1>
+        <h1>Turn anything on your Supernote screen into a note you can write on.</h1>
         <p class="lead">Tap the floating button in any app, drag a box over the part you want, and you're writing on it a second later. In PDFs and EPUBs your handwriting comes along as real ink, with a link back to the page.</p>
         <div class="actions">
           <a class="btn primary" href="https://github.com/traderchrisdev/SnapMark/releases/latest" data-event="download" data-where="hero">Download SnapMark</a>
           <a class="btn" href="https://github.com/traderchrisdev/SnapMark/blob/main/HOWTO.md">How-to guide</a>
         </div>
-        <p class="meta">Free · Open source (MIT) · No internet access · Tested on Manta</p>
+        <p class="meta">Free · Open source (MIT) · No internet access · Manta and Nomad</p>
       </div>
       <figure class="device hero-device">
         <img src="/img/step-3-note.png" width="900" height="1200" alt="A SnapMark note: a cut-out of a table from a PDF at the top, the reader's circle and underlines kept as ink, and a handwritten line below it.">
@@ -136,7 +161,7 @@
       <div class="faq">
         <details>
           <summary>Which Supernote models does it work on?</summary>
-          <p>It's tested on the Manta, and a Nomad user has been using it and reporting back. It's written to work on the A5&nbsp;X and A6&nbsp;X too, but those are untested so far. If you try one, please report how it went on GitHub.</p>
+          <p>The <strong>Manta</strong> and the <strong>Nomad</strong>. Every release is tested on a Manta, and a Nomad owner has confirmed it works there, held upright or turned sideways. It's written to work on the A5&nbsp;X and A6&nbsp;X too, but those are untested so far. If you try one, please report how it went on GitHub.</p>
         </details>
         <details>
           <summary>It says “not compatible with the current system version”.</summary>
