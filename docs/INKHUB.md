@@ -16,6 +16,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > • **Floating capture button** (optional, off by default): tap it in any app, box the part you want, and keep writing a second later. It captures the screen only when you tap it.
 > • **Paste into your note:** a region snap goes onto the page of the note you're working in, below what's there, with your handwriting as real ink and a link back to the PDF page.
 > • **Searchable snaps:** each snap from a PDF or EPUB carries a "Book p. N" keyword and the text it shows (on a hidden layer), so Supernote's Search finds it.
+> • **Notes for this page:** one note per PDF or EPUB page to write in, made the first time and reopened after.
 > • **Capture queue:** box several parts while you read (Queue), then paste them all into your note at once with their ink and links.
 > • **Undo last snap** takes back the last paste, queue paste or inbox page.
 > • **Annotate / Insert screenshot**, **Export page as PNG**, a **Snaps inbox** that collects every snap in one notebook, a **margin mode** for writing room, and **Save a log file** for bug reports.
@@ -24,7 +25,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.17.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.18.0. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).

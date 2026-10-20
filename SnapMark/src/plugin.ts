@@ -6,6 +6,7 @@ import { captureFromBubble, startBubble } from './features/bubble';
 import { exportCurrentPage } from './features/exportPng';
 import { snapPage } from './features/snapPage';
 import { snapRegion } from './features/snapRegion';
+import { notesForPage } from './features/pageNotes';
 import { pasteQueue } from './features/queuePaste';
 import { undoLastSnap } from './features/undo';
 import { log, logError } from './platform/log';
@@ -27,7 +28,8 @@ const BUTTON_INSERT_SCREENSHOT = 4;
 const BUTTON_SNAP_REGION = 5;
 const BUTTON_UNDO_SNAP = 6;
 const BUTTON_PASTE_QUEUE = 7;
-const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION, BUTTON_UNDO_SNAP, BUTTON_PASTE_QUEUE]);
+const BUTTON_PAGE_NOTES = 8;
+const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION, BUTTON_UNDO_SNAP, BUTTON_PASTE_QUEUE, BUTTON_PAGE_NOTES]);
 
 // One run at a time, from the toolbar buttons or the floating button. A run whose native call never
 // answers must not lock them forever.
@@ -58,6 +60,9 @@ async function run(id: number): Promise<void> {
       return;
     case BUTTON_PASTE_QUEUE:
       await pasteQueue(settings, await Sn.pluginDir());
+      return;
+    case BUTTON_PAGE_NOTES:
+      await notesForPage(settings);
       return;
     case BUTTON_ANNOTATE_SCREENSHOT:
     case BUTTON_INSERT_SCREENSHOT: {
@@ -102,6 +107,7 @@ export interface Icons {
   insertScreenshot: string;
   undoSnap: string;
   pasteQueue: string;
+  pageNotes: string;
 }
 
 export async function startPlugin(icons: Icons): Promise<void> {
@@ -115,6 +121,12 @@ export async function startPlugin(icons: Icons): Promise<void> {
     id: BUTTON_SNAP_REGION,
     name: 'Snap region',
     icon: icons.snapRegion,
+    showType: SHOW_NO_UI,
+  });
+  const notes = await PluginManager.registerButton(TOOLBAR, ['DOC'], {
+    id: BUTTON_PAGE_NOTES,
+    name: 'Notes for this page',
+    icon: icons.pageNotes,
     showType: SHOW_NO_UI,
   });
   const shot = await PluginManager.registerButton(TOOLBAR, ['NOTE'], {
@@ -149,7 +161,7 @@ export async function startPlugin(icons: Icons): Promise<void> {
   });
   log(
     `registered "Snap page": ${String(snap)}, "Snap region": ${String(region)}, "Annotate screenshot": ${String(shot)}, ` +
-      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}, "Undo last snap": ${String(undo)}, "Paste queued snaps": ${String(queue)}`,
+      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}, "Undo last snap": ${String(undo)}, "Paste queued snaps": ${String(queue)}, "Notes for this page": ${String(notes)}`,
   );
   // Shows whether settings survived a plugin update (they live in the plugin's private dir).
   storedSettingEntries().then(

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18.0 (2026-10-20)
+
+- **Notes for this page.** A new PDF/EPUB toolbar button: the first time, it makes a note for the page you're on (`<Book> - p<N> notes`), with the page shrunk at the top left (66%, or your margin size), your handwriting, the ↩ link back and the keyword, and room to write beside and below; every time after, it opens those same notes again. For pages whose margins can't hold what you want to write.
+- For developers: the device test makes a page's notes and opens them again.
+
 ## 0.17.0 (2026-10-20)
 
 - **Capture queue.** On the region screen, **Queue** keeps the box for later and takes you straight back to your reading, in a PDF, an EPUB or any app through the floating button. When you're done, **Paste queued snaps** (Notes toolbar → plugins) pastes them all onto your page in order, each below the last and on new pages as needed, with your handwriting as real ink (read then, so later ink comes too), the link or caption and the keyword. **Undo last snap** takes the whole batch back. The queue survives restarts; SnapMark's settings show how many are waiting and can clear it.

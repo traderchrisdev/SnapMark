@@ -122,6 +122,11 @@ export function formatStamp(d: Date): string {
  * "<dir>/<Title> - p<N> - <stamp>.note", then " (2)", " (3)"... for snaps in the same minute.
  * page is 0-based; the name uses the 1-based page number people see.
  */
+/** "Notes for this page": one note per document page, "<snaps>/<title>/<title> - p<N> notes.note". */
+export function pageNotesPath(snapsDirPath: string, title: string, page: number): string {
+  return `${snapsDirPath}/${title}/${title} - p${page + 1} notes.note`;
+}
+
 export function snapNoteCandidates(dir: string, title: string, page: number, stamp: string): Generator<string> {
   return numberedNoteCandidates(dir, `${title} - p${page + 1} - ${stamp}`);
 }

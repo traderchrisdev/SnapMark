@@ -36,6 +36,7 @@ import {
   settingsDir,
   snapNoteCandidates,
   tmpRenderPath,
+  pageNotesPath,
 } from '../src/core/paths';
 import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
 import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
@@ -669,5 +670,11 @@ describe('searchable snaps', () => {
   });
   it('keeps the stored text to a text box\'s worth', () => {
     expect(searchTextOf(['a'.repeat(5000), 'b'.repeat(5000)]).length).toBe(6000);
+  });
+});
+
+describe('notes for this page', () => {
+  it('names one note per document page, in the document\'s snaps folder', () => {
+    expect(pageNotesPath('/storage/emulated/0/Note/Snaps', 'Walden', 1)).toBe('/storage/emulated/0/Note/Snaps/Walden/Walden - p2 notes.note');
   });
 });

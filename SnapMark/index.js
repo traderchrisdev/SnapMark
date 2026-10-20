@@ -24,4 +24,5 @@ startPlugin({
   insertScreenshot: icon(require('./assets/icon-insert-screenshot.png')),
   undoSnap: icon(require('./assets/icon-undo-snap.png')),
   pasteQueue: icon(require('./assets/icon-paste-queue.png')),
+  pageNotes: icon(require('./assets/icon-page-notes.png')),
 }).catch(e => logError('startPlugin', e));

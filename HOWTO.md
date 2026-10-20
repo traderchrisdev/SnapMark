@@ -59,6 +59,12 @@ In a PDF or EPUB, tap **Snap page**. In about 3–4 seconds a new note opens wit
 
 With **After a snap → Stay here**, the note is saved and you stay on the page. With **Margin mode**, the page is shrunk to 80/75/66% at the top-left, starting after the Notes toolbar (set **Notes toolbar** to the side yours is on; with **Full size** it starts in the corner), leaving room to write on the right and below.
 
+## Notes for this page
+
+A PDF page with no room for your thoughts? Tap **Notes for this page** (PDF or EPUB toolbar → plugins). The first time, SnapMark makes a note for that page, `<Book> - p<N> notes`, in the book's snaps folder: the page shrunk at the top left (66%, or your margin-mode size) with your handwriting, the `↩` link back and the searchable keyword, and room to write beside and below. Add pages in Notes as you need them.
+
+Next time, the same button on that page opens those notes again, on their last page. They're found by their name, so if you rename or move the note, a new one is made. In an EPUB, pages move when you change the text size, so the notes follow the page number, not the text.
+
 ## Snap part of a page
 
 ![Snap region from the PDF toolbar: box the part you want, then write on the note](docs/screenshots/2-toolbar-region.png)

@@ -95,7 +95,12 @@ export interface Handwriting {
   markers: Element[];
 }
 
-export async function snapPage(settings: Settings): Promise<void> {
+export interface SnapPageOptions {
+  /** Make the snap at this path (it must not exist yet): "Notes for this page". */
+  notePath?: string;
+}
+
+export async function snapPage(settings: Settings, opts: SnapPageOptions = {}): Promise<void> {
   const t = new StepTimer();
   toast('Snapping…');
 
@@ -191,7 +196,7 @@ export async function snapPage(settings: Settings): Promise<void> {
     await assertUnlocked(dir);
     await fs.makeDirs(dir);
     // Collect mode without an inbox yet: the normal flows create it as the first snap.
-    const notePath = collects(settings) ? inbox : await firstFreePath(snapNoteCandidates(dir, title, page, formatStamp(new Date())));
+    const notePath = opts.notePath ?? (collects(settings) ? inbox : await firstFreePath(snapNoteCandidates(dir, title, page, formatStamp(new Date()))));
     const isPortrait = renderSize.height >= renderSize.width;
     const blank = appendToInbox || margin ? null : await pooledBlank(pluginDir, isPortrait);
     t.mark('paths');

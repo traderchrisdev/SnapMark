@@ -154,6 +154,21 @@ def paste_queue() -> Image.Image:
     return im
 
 
+def page_notes() -> Image.Image:
+    """A note page with the document page small at its top left and writing beside and below it."""
+    im = Image.new("RGBA", (SIZE, SIZE), CLEAR)
+    d = ImageDraw.Draw(im)
+    d.rectangle([20, 10, 172, 182], outline=INK, width=10)
+    d.rectangle([40, 30, 96, 100], outline=INK, width=8)
+    for y in (46, 62, 78):
+        d.line([(50, y), (86, y)], fill=INK, width=5)
+    for y in (48, 72, 96):
+        d.line([(112, y), (152, y)], fill=INK, width=8)
+    for y in (126, 150):
+        d.line([(40, y), (152, y)], fill=INK, width=8)
+    return im
+
+
 def save(im: Image.Image, name: str) -> None:
     out = im.resize((48, 48), Image.LANCZOS)
     out.save(ASSETS / name, optimize=True)
@@ -168,4 +183,5 @@ if __name__ == "__main__":
     save(insert_screenshot(), "icon-insert-screenshot.png")
     save(undo_snap(), "icon-undo-snap.png")
     save(paste_queue(), "icon-paste-queue.png")
+    save(page_notes(), "icon-page-notes.png")
     save(snap_page(), "icon.png")  # plugin icon in Settings -> Apps -> Plugins

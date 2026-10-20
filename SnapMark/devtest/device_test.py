@@ -353,6 +353,33 @@ def underline_row(gray, x0, x1, y0, y1):
 
 # The plugin icon in the Notes toolbar (Manta, upright): it opens the plugins menu.
 NOTE_PLUGINS_ICON = (56, 1952)
+# The same in the document app's toolbar.
+DOC_PLUGINS_ICON = (56, 1915)
+
+
+def doc_plugin_button(page, label, done_pattern, timeout=60):
+    """On the test PDF's `page`, tap a SnapMark button in the toolbar's plugins menu; returns SnapMark's log lines."""
+    close_plugin_screens()
+    if not open_doc(page):
+        return ['test: could not open the document']
+    time.sleep(1)
+    adb('logcat', '-c', check=False)
+    stamp = device_time()
+    nodes = None
+    for _ in range(2):
+        tap(DOC_PLUGINS_ICON)
+        nodes = wait_ui(label, 8)
+        if nodes:
+            break
+        sh('input keyevent KEYCODE_BACK')  # whatever opened instead (a dialog) closes
+        time.sleep(1.5)
+        open_doc(page)
+    if not nodes:
+        return [f'test: "{label}" not in the plugins menu']
+    tap(nodes[label])
+    wait_for(stamp, done_pattern, timeout)
+    time.sleep(3)
+    return snapmark_lines(stamp)
 
 
 def press_undo():
@@ -962,6 +989,30 @@ def cmd_run(args):
         res.log = log
         results.append(res)
 
+    if not args.pages and not args.no_page_notes:
+        # Notes for this page: the first tap makes "<title> - p2 notes" (margin-mode page), the second
+        # opens that same note again.
+        res = Result('Notes for this page: make, then reopen')
+        path = '/storage/emulated/0/Note/Snaps/SnapMark test/SnapMark test - p2 notes.note'
+        sh(f'rm -f {shlex.quote(path)}', check=False)
+        log = doc_plugin_button(2, 'Notes for this page', r'^(page notes: opened|snap page \d+ ->)')
+        made_line = next((l for l in log if l.startswith('snap page 2 -> ')), '')
+        res.check(made_line.endswith('notes.note (margin 66%)') or ' notes.note (margin ' in made_line, 'made as a margin-mode page', made_line[-120:])
+        if made_line:
+            made.append(path)
+            local = os.path.join(out_dir, 'page-notes-p2.note')
+            adb('pull', path, local)
+            total, _ = render_note(local, local.replace('.note', '.png'))
+            res.check(total == 1, 'one page', f'{total} pages')
+            if with_ink:
+                res.check(1 in mark_pages_with_ink(local), 'handwriting copied', '')
+        again = doc_plugin_button(2, 'Notes for this page', r'^(page notes: opened|snap page \d+ ->)')
+        opened = next((l for l in again if l.startswith('page notes: opened')), '')
+        res.check(opened.endswith(path), 'the second tap opens the same note', opened or 'no "page notes: opened" line')
+        res.check('NoteInsidePagesActivity' in resumed() or 'note' in resumed(), 'Notes shows it', '')
+        res.log = log + again
+        results.append(res)
+
     inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
     if not args.pages and not args.no_inbox:
         if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
@@ -1047,6 +1098,7 @@ def main():
     r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
     r.add_argument('--no-sideways', action='store_true', help='skip the snaps with the device turned sideways')
     r.add_argument('--no-queue', action='store_true', help='skip the capture queue (queue three boxes, paste them, undo)')
+    r.add_argument('--no-page-notes', action='store_true', help='skip Notes for this page (make, then reopen)')
     args = p.parse_args()
     {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 
