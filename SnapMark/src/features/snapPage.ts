@@ -287,6 +287,7 @@ async function viaInbox(snap: Snap, pluginDir: string, stay: boolean, t: StepTim
   const notePage = await appendToOpenInbox(snap.notePath, snap.render);
   beginAdding('inbox', snap.notePath, notePage, 0, true, notePage + 1);
   const linked = await addHandwritingAndBacklink(snap, notePage);
+  await addSearchable(snap.notePath, notePage, snap.search, await Sn.pageSize(snap.notePath, notePage));
   t.mark(`page ${notePage + 1}`);
   await refillPool(pluginDir);
   await ensureStillCurrent(snap.notePath);
@@ -414,6 +415,8 @@ async function viaOpenedSnap(snap: Snap, blank: string, pluginDir: string, stay:
   const linked = await addHandwritingAndBacklink(snap, 0);
   await Sn.removeNotePage(snap.notePath, 1);
   t.mark('page');
+  // Last, once the note has its one page: a slow answer here can't leave the blank behind.
+  await addSearchable(snap.notePath, 0, snap.search, await Sn.pageSize(snap.notePath, 0));
   await refillPool(pluginDir);
   t.mark('refill');
   await ensureStillCurrent(snap.notePath);
@@ -433,6 +436,7 @@ async function viaHelperNote(snap: Snap, pluginDir: string, isPortrait: boolean,
   t.mark('hop');
   await Sn.createNote(snap.notePath, snap.render, isPortrait);
   const linked = await addHandwritingAndBacklink(snap, 0);
+  await addSearchable(snap.notePath, 0, snap.search, await Sn.pageSize(snap.notePath, 0));
   t.mark('createNote');
   await refillPool(pluginDir); // NOTE is in front: the next snaps skip the helper note
   t.mark('refill');
@@ -671,7 +675,6 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
       await Sn.insertElements(notePath, notePage, all);
       recordInserted(notePath, notePage, all);
       log(`snap page: inserted ${strokes.length} strokes, ${shapes.length} shapes and the link`);
-      await addSearchable(notePath, notePage, snap.search, noteSize);
       return true;
     } catch (e) {
       if (all.length === 1) {

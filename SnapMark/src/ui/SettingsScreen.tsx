@@ -8,7 +8,9 @@ import { MARGIN_CHOICES } from '../core/margin';
 import type { ScreenshotFit } from '../core/fit';
 import { DEFAULT_SETTINGS, FRESHNESS_CHOICES, type Settings } from '../core/settings';
 import { setBubble } from '../features/bubble';
+import { clearQueue, queuedSnaps } from '../features/queueStore';
 import { saveLog } from '../features/saveLog';
+import { Sn } from '../sdk/sn';
 import { baseName } from '../core/paths';
 import { logError } from '../platform/log';
 import { Native } from '../platform/native';
@@ -28,12 +30,21 @@ export function SettingsScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [folderDraft, setFolderDraft] = useState('');
   const [status, setStatus] = useState('');
+  const [queued, setQueued] = useState<number | null>(null);
 
   useEffect(() => {
     loadSettings().then(s => {
       setSettings(s);
       setFolderDraft(s.folder);
     });
+    if (Native.available) {
+      Sn.pluginDir()
+        .then(queuedSnaps)
+        .then(
+          q => setQueued(q.length),
+          e => logError('queue: count', e),
+        );
+    }
   }, []);
 
   if (!settings) {
@@ -223,6 +234,34 @@ export function SettingsScreen() {
       <Section label="Notes toolbar" hint="Screenshot notes are shrunk so the toolbar and the page bar don't cover them.">
         <Choice options={fitOptions} value={settings.screenshotFit} onChange={v => update('screenshotFit', v)} />
       </Section>
+
+      {queued !== null ? (
+        <Section
+          label="Capture queue"
+          hint={
+            queued
+              ? `${queued} snap${queued === 1 ? '' : 's'} waiting. In Notes: plugins → Paste queued snaps. Clear throws them away.`
+              : 'Empty. On the region screen, box a part and tap Queue to keep it for later; paste them all in Notes.'
+          }
+        >
+          {queued ? (
+            <Button
+              label="Clear the queue"
+              onPress={() =>
+                Sn.pluginDir()
+                  .then(clearQueue)
+                  .then(
+                    () => {
+                      setQueued(0);
+                      setStatus('Queue cleared');
+                    },
+                    e => setStatus(`Not cleared: ${describeError(e)}`),
+                  )
+              }
+            />
+          ) : null}
+        </Section>
+      ) : null}
 
       {Native.available ? (
         <Section

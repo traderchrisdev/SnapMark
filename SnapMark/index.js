@@ -23,4 +23,5 @@ startPlugin({
   exportPng: icon(require('./assets/icon-export-png.png')),
   insertScreenshot: icon(require('./assets/icon-insert-screenshot.png')),
   undoSnap: icon(require('./assets/icon-undo-snap.png')),
+  pasteQueue: icon(require('./assets/icon-paste-queue.png')),
 }).catch(e => logError('startPlugin', e));

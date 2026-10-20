@@ -140,6 +140,20 @@ def undo_snap() -> Image.Image:
     return im
 
 
+def paste_queue() -> Image.Image:
+    """Three cut-outs stacked, an arrow down into the page: paste what's queued."""
+    im = Image.new("RGBA", (SIZE, SIZE), CLEAR)
+    d = ImageDraw.Draw(im)
+    for i, (x, y) in enumerate(((58, 14), (40, 32), (22, 50))):
+        d.rectangle([x, y, x + 110, y + 56], fill=CLEAR)
+        d.rectangle([x, y, x + 110, y + 56], outline=INK, width=10)
+    # The arrow, down from the front cut-out.
+    d.line([(77, 112), (77, 166)], fill=INK, width=STROKE)
+    d.polygon([(77 - 30, 150), (77 + 30, 150), (77, 184)], fill=INK)
+    d.line([(118, 178), (178, 178)], fill=INK, width=10)
+    return im
+
+
 def save(im: Image.Image, name: str) -> None:
     out = im.resize((48, 48), Image.LANCZOS)
     out.save(ASSETS / name, optimize=True)
@@ -153,4 +167,5 @@ if __name__ == "__main__":
     save(export_png(), "icon-export-png.png")
     save(insert_screenshot(), "icon-insert-screenshot.png")
     save(undo_snap(), "icon-undo-snap.png")
+    save(paste_queue(), "icon-paste-queue.png")
     save(snap_page(), "icon.png")  # plugin icon in Settings -> Apps -> Plugins

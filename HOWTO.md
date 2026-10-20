@@ -87,6 +87,16 @@ Things to know:
 - **Whole screen** from the floating button pastes the whole screen. In a PDF or EPUB, **Whole page** and Snap page still make a note of their own, as do the screenshot buttons.
 - **After a snap → Stay here** pastes and brings you back to the app or document you were in.
 
+## Capture queue: collect while you read, paste later
+
+Reading and finding several passages you want? Don't stop for each one:
+1. Box a part as usual (Snap region, or the floating button in any app) and tap **Queue** instead of Snap region. You stay where you were; a short message says how many are waiting.
+2. When you're done, open your note in Notes and tap **Paste queued snaps** (toolbar → plugins).
+
+Everything queued goes onto the page you're on, oldest first, each below the last (on new pages when the page is full), the way a single paste does: the picture, your handwriting from the document as real ink (read at that moment, so ink you added after queuing comes too), the `↩ Book, p. N` link (or a caption naming the app) and the keyword. **Undo last snap** takes the whole batch back.
+
+The queue is kept in SnapMark's own folder, so it survives a restart or an update. SnapMark's settings show how many snaps are waiting, with **Clear the queue** to throw them away.
+
 ## Find your snaps with Search
 
 With **Searchable snaps** on (the default), a snap from a PDF or EPUB carries what it shows, so Supernote's own **Search** finds it later:
@@ -98,7 +108,7 @@ Scanned PDFs have no text, so their snaps get the keyword alone, as do margin-mo
 
 ## Undo last snap
 
-Pasted the wrong part, or into the wrong note? In Notes, open the toolbar's plugins menu and tap **Undo last snap**. It takes back the last snap that went into a notebook you already had:
+Pasted the wrong part, or into the wrong note? In Notes, open the toolbar's plugins menu and tap **Undo last snap**. It takes back the last snap that went into a notebook you already had (a **Paste queued snaps** counts as one, all of it):
 - **a paste** into the note you're working in: the picture, its ink, its link or caption and its keyword are removed (and the page, if the paste had made one);
 - **a Snaps inbox page**: the page is removed.
 
@@ -129,6 +139,7 @@ Turn it on in SnapMark's settings (**Floating capture button → On**). A small 
 ![Mark up a page, tap the floating button and drag a box, then write on the note it makes](docs/screenshots/1-snap-region.png)
 
 After **Snap region** or a tap on the floating button, you see the page or screen as it was:
+- **Queue** keeps the box for later and takes you back: see [Capture queue](#capture-queue-collect-while-you-read-paste-later).
 - **Drag** with your finger or the pen to draw a box, or **tap two corners**: tap one corner (a small square marks it), then the opposite one. Taps are quicker on e-ink, where a drag lags behind.
 - To adjust the box, drag a corner, or tap a corner and then tap where it should go. Drag or tap elsewhere to start over.
 - **Snap region** keeps that part.

@@ -770,6 +770,17 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         }
     }
 
+    /** Reads a UTF-8 text file (the capture queue's records). */
+    @ReactMethod
+    public void readText(String path, Promise promise) {
+        try {
+            byte[] data = java.nio.file.Files.readAllBytes(new File(path).toPath());
+            promise.resolve(new String(data, StandardCharsets.UTF_8));
+        } catch (Throwable e) {
+            promise.reject("E_READ", e.toString(), e);
+        }
+    }
+
     /** A white image of the given size (the background of a page added for a paste). */
     @ReactMethod
     public void whitePng(String outPath, int width, int height, Promise promise) {

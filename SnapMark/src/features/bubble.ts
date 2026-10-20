@@ -20,9 +20,10 @@ import { cachedSettings } from '../platform/settingsStore';
 import { UserFacingError } from '../sdk/errors';
 import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
-import { askForRegion, type RegionChoice } from './region';
+import { enqueue } from './queueStore';
+import { askForRegion, isBoxChoice, isQueueChoice, type RegionChoice } from './region';
 import { snapPage } from './snapPage';
-import { snapRegion } from './snapRegion';
+import { queuedToast, snapRegion } from './snapRegion';
 
 let pluginDir: string | null = null;
 
@@ -82,11 +83,23 @@ export async function captureFromBubble(): Promise<void> {
   if (choose) {
     const out = `${tmpDir(dir)}/${CAPTURE_PREFIX}${stamp}-page.png`;
     let choice: RegionChoice = null;
+    let queued = 0;
     try {
       choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole screen');
-      if (choice === 'whole' && !paste) {
+      if (isQueueChoice(choice)) {
+        const cut = await cutRegion(raw, out, choice.queue);
+        queued = await enqueue(dir, out, null, {
+          takenAt: Date.now(),
+          width: cut.width,
+          height: cut.height,
+          doc: null,
+          caption: front.pkg === NOTE_PACKAGE ? null : captionText(front.label, takenAt),
+          keyword: null,
+          ink: null,
+        });
+      } else if (choice === 'whole' && !paste) {
         await Native.fitImage(raw, out, fitInsetsDp(settings.screenshotFit));
-      } else if (choice && choice !== 'whole') {
+      } else if (isBoxChoice(choice)) {
         if (paste) {
           pasted = await cutRegion(raw, out, choice);
         } else {
@@ -97,6 +110,10 @@ export async function captureFromBubble(): Promise<void> {
       await closeRegionScreen('bubble', choice);
     }
     t.mark('region');
+    if (isQueueChoice(choice)) {
+      queuedToast(queued);
+      return; // the capture is removed by the next run that gets NOTE in front
+    }
     if (!choice) {
       return; // the capture is removed by the next run that gets NOTE in front
     }

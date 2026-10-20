@@ -19,8 +19,22 @@ export interface RegionRequest {
   wholeLabel: string;
 }
 
-/** A box in the capture's pixels, the whole capture, or null when the user cancelled. */
-export type RegionChoice = Rect | 'whole' | null;
+/** A box to keep for later (the capture queue), in the capture's pixels. */
+export interface QueueChoice {
+  queue: Rect;
+}
+
+/** A box in the capture's pixels, the whole capture, a box to queue, or null when the user cancelled. */
+export type RegionChoice = Rect | 'whole' | QueueChoice | null;
+
+export function isQueueChoice(choice: RegionChoice): choice is QueueChoice {
+  return typeof choice === 'object' && choice !== null && 'queue' in choice;
+}
+
+/** A box to snap now (not the whole page, not a queued box, not a cancel). */
+export function isBoxChoice(choice: RegionChoice): choice is Rect {
+  return typeof choice === 'object' && choice !== null && !('queue' in choice);
+}
 
 let pending: ((choice: RegionChoice) => void) | null = null;
 

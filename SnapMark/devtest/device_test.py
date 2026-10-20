@@ -226,7 +226,17 @@ def install(snplg):
     adb('push', snplg, '/sdcard/MyStyle/' + name)
     plugin_page()
     tap_label('Select Plugin Package')
-    n = wait_ui(name, 10)
+    n = wait_ui(name, 6)
+    for _ in range(6):  # MyStyle may hold more packages than one page of the picker shows
+        if n:
+            break
+        pager = next((xy for k, xy in ui_nodes().items() if re.fullmatch(r'\d+ / \d+', k)), None)
+        if not pager:
+            break
+        tap((pager[0] + 180, pager[1]))  # the next-page arrow
+        time.sleep(1.5)
+        nodes = ui_nodes()
+        n = nodes if name in nodes else None
     if not n:
         raise SystemExit(f'{name} not in the package picker')
     x, y = n[name]
@@ -347,14 +357,42 @@ NOTE_PLUGINS_ICON = (56, 1952)
 
 def press_undo():
     """Tap SnapMark's "Undo last snap" in the Notes toolbar's plugins menu; returns SnapMark's log lines."""
-    tap(NOTE_PLUGINS_ICON)
-    nodes = wait_ui('Undo last snap', 10)
+    nodes = None
+    for _ in range(2):  # right after a reload Notes can miss the tap: try once more
+        tap(NOTE_PLUGINS_ICON)
+        nodes = wait_ui('Undo last snap', 8)
+        if nodes:
+            break
+        time.sleep(2)
     if not nodes:
         return ['test: "Undo last snap" not in the plugins menu']
     adb('logcat', '-c', check=False)
     stamp = device_time()
     tap(nodes['Undo last snap'])
     wait_for(stamp, r'^undo: (Removed|Can.t|Nothing)', 20)
+    time.sleep(2)
+    return snapmark_lines(stamp)
+
+
+def queue_box(page, box):
+    """Box a region (of the test PDF's `page`, or of the Settings app when page is None) and tap Queue."""
+    close_plugin_screens()
+    if page is None:
+        sh('am start -n com.ratta.settings/.SettingsActivity')
+        time.sleep(3)
+    elif not open_doc(page):
+        return ['test: could not open the document']
+    adb('logcat', '-c', check=False)
+    stamp = device_time()
+    tap(bubble_center())
+    nodes = wait_ui('Queue', 25)
+    if not nodes:
+        return snapmark_lines(stamp) + ['test: the region screen did not come up']
+    l, t, r, b = box
+    sh(f'input swipe {l} {t} {r} {b} 600')
+    time.sleep(1)
+    tap(ui_nodes().get('Queue', nodes['Queue']))
+    wait_for(stamp, r'^queue: added', 30)
     time.sleep(2)
     return snapmark_lines(stamp)
 
@@ -876,6 +914,54 @@ def cmd_run(args):
             snapmark_settings('A new note each')
             restart_host()
 
+    if not args.pages and not args.no_queue and made:
+        # Capture queue: two regions of the test PDF and one of another app (the Settings app) are
+        # queued, then "Paste queued snaps" pastes them into a note made above, in order, with their
+        # ink; Undo last snap takes the whole batch back.
+        res = Result('Capture queue: queue 3, paste, undo')
+        target = next((p for p in made if p.endswith('.note') and ' - p1 - ' in p and '/Screenshots/' not in p), made[0])
+        log = []
+        for page, box in ((1, (150, 560, 1700, 1000)), (LAST_PAGE, (120, 240, 1800, 1100))):
+            log += queue_box(page, box)
+        log += queue_box(None, (300, 300, 1600, 900))
+        added = [l for l in log if l.startswith('queue: added')]
+        res.check(len(added) == 3, 'three boxes queued', ' | '.join(added))
+        before_local = os.path.join(out_dir, 'queue-target-before.note')
+        adb('pull', target, before_local)
+        open_note(target)
+        time.sleep(2)
+        tap(NOTE_PLUGINS_ICON)
+        nodes = wait_ui('Paste queued snaps', 10)
+        if nodes:
+            adb('logcat', '-c', check=False)
+            stamp = device_time()
+            tap(nodes['Paste queued snaps'])
+            wait_for(stamp, r'^queue: pasted', 120)
+            time.sleep(3)
+            plog = snapmark_lines(stamp)
+            log += plog
+            done = next((l for l in plog if l.startswith('queue: pasted')), '')
+            res.check('pasted 3 of 3' in done, 'all three pasted', done)
+            after_local = os.path.join(out_dir, 'queue-target-after.note')
+            adb('pull', target, after_local)
+            before, after = stroke_bytes(before_local), stroke_bytes(after_local)
+            res.check(sum(after.values()) > sum(before.values()) if with_ink else True, 'their handwriting added as strokes', f'stroke data before {before}, after {after}')
+            errors = [l for l in plog if l.startswith('ERROR')]
+            res.check(not errors, 'no errors logged', errors[0] if errors else '')
+            for i in range(note_pages(after_local)):
+                render_note(after_local, after_local.replace('.note', f'-p{i + 1}.png'), i)
+            ulog = press_undo()
+            log += ulog
+            undone_local = os.path.join(out_dir, 'queue-target-undone.note')
+            adb('pull', target, undone_local)
+            said = next((l for l in ulog if l.startswith('undo: ') and ('Removed' in l or "Can't" in l or 'Nothing' in l)), '')
+            res.check(stroke_bytes(undone_local) == before and note_pages(undone_local) == note_pages(before_local),
+                      'Undo last snap removed the whole batch', f'{said}; {note_pages(undone_local)} pages')
+        else:
+            res.check(False, '"Paste queued snaps" in the plugins menu', '')
+        res.log = log
+        results.append(res)
+
     inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
     if not args.pages and not args.no_inbox:
         if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
@@ -960,6 +1046,7 @@ def main():
     r.add_argument('--no-paste', action='store_true', help='skip the "Into the note I\'m working in" pastes')
     r.add_argument('--no-log', action='store_true', help='skip the Save a log file check')
     r.add_argument('--no-sideways', action='store_true', help='skip the snaps with the device turned sideways')
+    r.add_argument('--no-queue', action='store_true', help='skip the capture queue (queue three boxes, paste them, undo)')
     args = p.parse_args()
     {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 

@@ -216,7 +216,7 @@ export async function pasteIntoNote(
  * Free space is found in a render of the page: what differs from its background, or for an image
  * background (a snap or capture note) the background too.
  */
-async function placeOnPage(
+export async function placeOnPage(
   notePath: string,
   page: number,
   image: Pasted,
@@ -317,7 +317,7 @@ async function placeOnPage(
 }
 
 /** The note NOTE has open, once PluginHost talks to NOTE (from DOC it answers for the document a moment longer). */
-async function openNotePath(): Promise<string> {
+export async function openNotePath(): Promise<string> {
   const t0 = Date.now();
   for (;;) {
     const path = await Sn.currentFilePath().catch(e => {

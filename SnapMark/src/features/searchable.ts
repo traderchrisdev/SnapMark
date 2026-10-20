@@ -10,7 +10,9 @@ import { linesInRows, searchTextOf, snapKeyword, textBandsOnly, textLines } from
 import type { Settings } from '../core/settings';
 import { log, logError } from '../platform/log';
 import { Native } from '../platform/native';
+import { errorCode } from '../sdk/errors';
 import { Sn } from '../sdk/sn';
+import { nativeDelay } from '../sdk/wait';
 import { recordInserted } from './undo';
 
 export interface Searchable {
@@ -21,6 +23,10 @@ export interface Searchable {
 
 /** A row with this many dark px is text; a frame's thin sides have fewer. */
 const MIN_DARK_PX = 8;
+/** NOTE has been seen not to answer a keyword or layer call now and then: the snap doesn't wait for it. */
+const CALL_LIMIT_MS = 8000;
+/** insertKeyWord's error for a keyword the page already has. */
+const CODE_DUPLICATE_KEYWORD = 1001;
 const LAYER_NAME = 'Searchable text';
 const TEXT_LAYER = 1;
 const TEXT_SIZE = 20;
@@ -92,11 +98,30 @@ export async function addSearchable(
   if (!s) {
     return;
   }
+  const done = await Promise.race([addSearchableNow(notePath, page, s, size, what).then(() => true), nativeDelay(CALL_LIMIT_MS).then(() => false)]);
+  if (!done) {
+    log(`searchable: no answer from Notes after ${CALL_LIMIT_MS} ms; the snap goes on without waiting`);
+  }
+}
+
+/** True for the error insertKeyWord gives when the page has that keyword already. */
+function isDuplicate(e: unknown): boolean {
+  return errorCode(e) === CODE_DUPLICATE_KEYWORD;
+}
+
+async function addSearchableNow(notePath: string, page: number, s: Searchable, size: Size, what: 'all' | 'keyword' | 'text'): Promise<void> {
   try {
     let where = '';
     if (what !== 'text') {
-      await Sn.insertKeyWord(notePath, page, s.keyword);
-      where = 'keyword';
+      try {
+        await Sn.insertKeyWord(notePath, page, s.keyword);
+        where = 'keyword';
+      } catch (e) {
+        if (!isDuplicate(e)) {
+          throw e;
+        }
+        where = 'keyword (there already)';
+      }
     }
     if (s.text && what !== 'keyword') {
       // Always a page SnapMark just made (a snap note, an inbox page): layer 1 is free. Not asked
@@ -131,10 +156,14 @@ export async function addPasteKeyword(notePath: string, page: number, keyword: s
     return false;
   }
   try {
-    await Sn.insertKeyWord(notePath, page, keyword);
-    log(`searchable: "${keyword}" -> ${baseName(notePath)} page ${page + 1}`);
-    return true;
+    const added = await Promise.race([Sn.insertKeyWord(notePath, page, keyword).then(() => true), nativeDelay(CALL_LIMIT_MS).then(() => false)]);
+    log(added ? `searchable: "${keyword}" -> ${baseName(notePath)} page ${page + 1}` : `searchable: no answer from Notes for the keyword after ${CALL_LIMIT_MS} ms`);
+    return added;
   } catch (e) {
+    if (isDuplicate(e)) {
+      log(`searchable: "${keyword}" is on ${baseName(notePath)} page ${page + 1} already`);
+      return false; // not ours: Undo leaves it
+    }
     logError('searchable: keyword on the paste', e);
     return false;
   }

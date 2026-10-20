@@ -20,12 +20,14 @@ import type { Settings } from '../core/settings';
 import { StepTimer } from '../core/timer';
 import { log, logError } from '../platform/log';
 import { Native, type Capture, type FrontTask } from '../platform/native';
+import { toast } from '../platform/toast';
 import { CODE_PAGE_NOT_FOUND, errorCode, UserFacingError } from '../sdk/errors';
 import { fs } from '../sdk/fs';
 import { Sn } from '../sdk/sn';
 import { CAPTURE_PREFIX, closeRegionScreen, cutRegion, deliverToNote, pasteIntoNote, placeRegion, removeCaptures, type Pasted } from './capture';
 import type { DocPage } from './annotateScreenshot';
-import { askForRegion, type RegionChoice } from './region';
+import { enqueue, type QueuedSnap } from './queueStore';
+import { askForRegion, isBoxChoice, isQueueChoice, type RegionChoice } from './region';
 import { pageSearchable, readDocText, regionSearchable, type Searchable } from './searchable';
 import { docFramesOf, documentPageSize, isLastPage, isSideways, markerInfos, normalizeRender, readHandwriting, scrolledView, snapPage, underlinesFrom, type Handwriting } from './snapPage';
 
@@ -100,10 +102,17 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
   let lateInk: (() => Promise<Element[]>) | undefined;
   let search: Searchable | null = null;
   let isPortrait = pageSize.height >= pageSize.width;
+  let queued = 0;
   try {
     choice = await askForRegion({ path: raw, width: shot.width, height: shot.height }, 'Whole page');
     t.mark('region');
-    if (choice && choice !== 'whole') {
+    if (isQueueChoice(choice)) {
+      const read = await reading;
+      if (read) {
+        Sn.recycle([...read.strokes, ...read.markers]);
+      }
+      queued = await queueBox(settings, { raw, shot }, { docPath, page }, choice.queue, out, render, await rendering, pageSize, pluginDir);
+    } else if (isBoxChoice(choice)) {
       const box = choice;
       const [rendered, read] = await Promise.all([rendering, reading]);
       t.mark('render');
@@ -147,6 +156,11 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
     await closeRegionScreen('snap region', choice);
   }
 
+  if (isQueueChoice(choice)) {
+    await removeCaptures(pluginDir);
+    queuedToast(queued);
+    return;
+  }
   if (choice === null || choice === 'whole') {
     // DOC is in front again: wait for the background work, clean up, and for "Whole page" snap it all.
     await rendering;
@@ -182,32 +196,29 @@ export async function snapRegion(settings: Settings, from?: Captured): Promise<v
 async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out: string, render: string, rendering: Promise<boolean>, pageSize: Size, pluginDir: string, t: StepTimer): Promise<void> {
   let choice: RegionChoice = null;
   let pasted: Pasted | null = null;
+  let queued = 0;
   try {
     choice = await askForRegion({ path: from.raw, width: from.shot.width, height: from.shot.height }, 'Whole page');
     t.mark('region');
-    if (choice && choice !== 'whole') {
-      const box = choice;
-      if (await rendering) {
-        let frames = await docFramesOf(doc.docPath, doc.page, pageSize);
-        const crop = captureToPage(box, from.shot, frames.view);
-        await normalizeRender(render, pageSize, frames);
-        frames = await scrolledView(frames, from.raw, render);
-        pasted = await cutRegion(render, out, mapRect(crop, frames.viewToRender));
-        pasted.keyword = settings.searchable ? snapKeyword(docTitle(doc.docPath), doc.page) : undefined;
-        if (settings.includeHandwriting) {
-          // Read with NOTE in front: upright even on a sideways screen (R83).
-          const noteFrames = inNote(frames);
-          const inkCrop = mapRect(crop, noteFrames.viewToInk);
-          pasted.ink = async (dst, noteSize) =>
-            regionInk(await readHandwriting(doc.docPath, doc.page, settings.highlightStyle), render, inkCrop, dst, noteSize, noteFrames);
-        }
-      } else {
-        pasted = await cutRegion(from.raw, out, box);
-        pasted.keyword = settings.searchable ? snapKeyword(docTitle(doc.docPath), doc.page) : undefined;
+    if (isQueueChoice(choice)) {
+      queued = await queueBox(settings, from, doc, choice.queue, out, render, await rendering, pageSize, pluginDir);
+    } else if (isBoxChoice(choice)) {
+      const cut = await cutForPaste(settings, from, doc, choice, out, render, await rendering, pageSize);
+      pasted = cut.pasted;
+      const ink = cut.ink;
+      if (ink) {
+        pasted.ink = async (dst, noteSize) =>
+          regionInk(await readHandwriting(doc.docPath, doc.page, ink.highlightStyle), render, ink.crop, dst, noteSize, ink.frames);
       }
     }
   } finally {
     await closeRegionScreen('snap region', choice);
+  }
+  if (isQueueChoice(choice)) {
+    await rendering;
+    await removeCaptures(pluginDir);
+    queuedToast(queued);
+    return;
   }
   if (!pasted) {
     await rendering;
@@ -221,10 +232,70 @@ async function pasteRegion(settings: Settings, from: Captured, doc: DocPage, out
 }
 
 /**
+ * A box of a document page for a paste (now or from the queue): cut from the page's clean render
+ * (mapped through the view, R81/R83), with its keyword, and where its ink is: the box in the frame NOTE
+ * reads the page's ink in, upright (R83). Without a render it's cut from the screen capture, which has
+ * the ink in it already.
+ */
+async function cutForPaste(
+  settings: Settings,
+  from: { raw: string; shot: Capture },
+  doc: DocPage,
+  box: Rect,
+  out: string,
+  render: string,
+  rendered: boolean,
+  pageSize: Size,
+): Promise<{ pasted: Pasted; ink: QueuedSnap['ink']; fromRender: boolean }> {
+  const keyword = settings.searchable ? snapKeyword(docTitle(doc.docPath), doc.page) : undefined;
+  if (!rendered) {
+    const pasted = await cutRegion(from.raw, out, box);
+    return { pasted: { ...pasted, keyword }, ink: null, fromRender: false };
+  }
+  let frames = await docFramesOf(doc.docPath, doc.page, pageSize);
+  const crop = captureToPage(box, from.shot, frames.view);
+  await normalizeRender(render, pageSize, frames);
+  frames = await scrolledView(frames, from.raw, render);
+  const pasted = await cutRegion(render, out, mapRect(crop, frames.viewToRender));
+  const noteFrames = inNote(frames);
+  const ink = settings.includeHandwriting ? { crop: mapRect(crop, noteFrames.viewToInk), frames: noteFrames, highlightStyle: settings.highlightStyle } : null;
+  return { pasted: { ...pasted, keyword }, ink, fromRender: true };
+}
+
+/** Keep a box of a document page for later (the capture queue). Returns how many are waiting. */
+async function queueBox(
+  settings: Settings,
+  from: { raw: string; shot: Capture },
+  doc: DocPage,
+  box: Rect,
+  out: string,
+  render: string,
+  rendered: boolean,
+  pageSize: Size,
+  pluginDir: string,
+): Promise<number> {
+  const cut = await cutForPaste(settings, from, doc, box, out, render, rendered, pageSize);
+  return enqueue(pluginDir, out, cut.fromRender ? render : null, {
+    takenAt: Date.now(),
+    width: cut.pasted.width,
+    height: cut.pasted.height,
+    doc,
+    caption: null,
+    keyword: cut.pasted.keyword ?? null,
+    ink: cut.ink,
+  });
+}
+
+/** After queuing: how many are waiting and where to paste them. */
+export function queuedToast(n: number): void {
+  toast(`Queued: ${n} waiting. In Notes: plugins → Paste queued snaps.`);
+}
+
+/**
  * The ink inside the box, moved and scaled into the placed cut-out: the strokes as they are, each
  * marker as an underline just under its text line in `render` (page px). Recycles `read`.
  */
-async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rect, pageSize: Size, frames: DocFrames): Promise<Element[]> {
+export async function regionInk(read: Handwriting, render: string, crop: Rect, dst: Rect, pageSize: Size, frames: DocFrames): Promise<Element[]> {
   const inkFrame = frames.inkToRender;
   const infos = await markerInfos(read.markers, frames.inkSize).catch(() => []);
   Sn.recycle(read.markers);

@@ -194,7 +194,7 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
   };
 
   const hint = busy
-    ? 'Snapping…'
+    ? 'Working…'
     : waiting === 'new'
       ? 'Now tap the opposite corner.'
       : waiting === 'move'
@@ -209,6 +209,11 @@ export function RegionScreen({ request }: { request: RegionRequest }) {
         <Text style={s.hint}>{hint}</Text>
         <Button label="Cancel" onPress={() => answer(null)} disabled={busy} />
         <Button label={wholeLabel} onPress={() => answer('whole')} disabled={busy} />
+        <Button
+          label="Queue"
+          onPress={() => box && frame && answer({ queue: boxToCapturePx(box, frame, capture) })}
+          disabled={busy || !box}
+        />
         <Button
           label="Snap region"
           onPress={() => box && frame && answer(boxToCapturePx(box, frame, capture))}

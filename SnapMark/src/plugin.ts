@@ -6,12 +6,14 @@ import { captureFromBubble, startBubble } from './features/bubble';
 import { exportCurrentPage } from './features/exportPng';
 import { snapPage } from './features/snapPage';
 import { snapRegion } from './features/snapRegion';
+import { pasteQueue } from './features/queuePaste';
 import { undoLastSnap } from './features/undo';
 import { log, logError } from './platform/log';
 import { hasFilePermissions } from './platform/permissions';
 import { loadSettings, storedSettingEntries } from './platform/settingsStore';
 import { toast } from './platform/toast';
 import { describeError } from './sdk/errors';
+import { Sn } from './sdk/sn';
 import { setRoute } from './ui/route';
 
 const TOOLBAR = 1;
@@ -24,7 +26,8 @@ const BUTTON_EXPORT_PNG = 3;
 const BUTTON_INSERT_SCREENSHOT = 4;
 const BUTTON_SNAP_REGION = 5;
 const BUTTON_UNDO_SNAP = 6;
-const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION, BUTTON_UNDO_SNAP]);
+const BUTTON_PASTE_QUEUE = 7;
+const BUTTONS = new Set([BUTTON_SNAP_PAGE, BUTTON_ANNOTATE_SCREENSHOT, BUTTON_EXPORT_PNG, BUTTON_INSERT_SCREENSHOT, BUTTON_SNAP_REGION, BUTTON_UNDO_SNAP, BUTTON_PASTE_QUEUE]);
 
 // One run at a time, from the toolbar buttons or the floating button. A run whose native call never
 // answers must not lock them forever.
@@ -52,6 +55,9 @@ async function run(id: number): Promise<void> {
       return;
     case BUTTON_UNDO_SNAP:
       await undoLastSnap();
+      return;
+    case BUTTON_PASTE_QUEUE:
+      await pasteQueue(settings, await Sn.pluginDir());
       return;
     case BUTTON_ANNOTATE_SCREENSHOT:
     case BUTTON_INSERT_SCREENSHOT: {
@@ -95,6 +101,7 @@ export interface Icons {
   exportPng: string;
   insertScreenshot: string;
   undoSnap: string;
+  pasteQueue: string;
 }
 
 export async function startPlugin(icons: Icons): Promise<void> {
@@ -134,9 +141,15 @@ export async function startPlugin(icons: Icons): Promise<void> {
     icon: icons.undoSnap,
     showType: SHOW_NO_UI,
   });
+  const queue = await PluginManager.registerButton(TOOLBAR, ['NOTE'], {
+    id: BUTTON_PASTE_QUEUE,
+    name: 'Paste queued snaps',
+    icon: icons.pasteQueue,
+    showType: SHOW_NO_UI,
+  });
   log(
     `registered "Snap page": ${String(snap)}, "Snap region": ${String(region)}, "Annotate screenshot": ${String(shot)}, ` +
-      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}, "Undo last snap": ${String(undo)}`,
+      `"Export page as PNG": ${String(exp)}, "Insert screenshot": ${String(ins)}, "Undo last snap": ${String(undo)}, "Paste queued snaps": ${String(queue)}`,
   );
   // Shows whether settings survived a plugin update (they live in the plugin's private dir).
   storedSettingEntries().then(

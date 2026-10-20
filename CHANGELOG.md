@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0 (2026-10-20)
+
+- **Capture queue.** On the region screen, **Queue** keeps the box for later and takes you straight back to your reading, in a PDF, an EPUB or any app through the floating button. When you're done, **Paste queued snaps** (Notes toolbar → plugins) pastes them all onto your page in order, each below the last and on new pages as needed, with your handwriting as real ink (read then, so later ink comes too), the link or caption and the keyword. **Undo last snap** takes the whole batch back. The queue survives restarts; SnapMark's settings show how many are waiting and can clear it.
+- **Searchable snaps, more robust:** the keyword and hidden text now go in last, and Notes gets 8 seconds to answer, so a slow answer can't hold a page snap up or leave a blank page in it. A paste from a page whose keyword your note already has keeps the one it has (no error).
+- For developers: the device test queues two document regions and one from another app, pastes them and undoes the batch. It also pages through the plugin installer's file picker when MyStyle holds many packages.
+
 ## 0.16.0 (2026-10-19)
 
 - **Searchable snaps.** A snap from a PDF or EPUB now carries a `Book p. N` keyword and the text it shows, on a hidden layer of its page, so Supernote's Search finds it: Search → Keyword by book and page, Search → Text by any word in it. A region snap keeps the lines inside your box (or its page's text when the lines can't be told apart, as in two columns). A paste into your own note gets the keyword only, and Undo last snap takes it off again. On by default; **Searchable snaps** in the settings turns it off.

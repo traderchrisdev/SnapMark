@@ -78,6 +78,7 @@ interface Spec {
   whitePng(outPath: string, width: number, height: number): Promise<boolean>;
   inspectRender(path: string, bands: TextBand[], zones: Rect[]): Promise<RenderReport>;
   writeText(path: string, text: string): Promise<boolean>;
+  readText(path: string): Promise<string>;
   pdfPageSize(path: string, page: number): Promise<Size>;
   imageSize(path: string): Promise<Size>;
   displayRotation(): Promise<number>;
@@ -146,6 +147,8 @@ export const Native = {
   pdfPageSize: (path: string, page: number) => call('pdfPageSize', m => m.pdfPageSize(path, page)),
   /** A UTF-8 text file (the log the user can share). */
   writeText: (path: string, text: string) => call('writeText', m => m.writeText(path, text)),
+  /** A UTF-8 text file's contents. */
+  readText: (path: string) => call('readText', m => m.readText(path)),
   /** Let NOTE/DOC take pen input again after a plugin screen (false if this firmware can't). */
   releasePenLock: () => call('releasePenLock', m => m.releasePenLock()),
 
