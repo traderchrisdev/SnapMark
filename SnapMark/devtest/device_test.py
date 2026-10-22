@@ -609,6 +609,15 @@ def sideways_box(box):
     return (round(120 + l * k), round(184 + t * k), round(120 + r * k), round(184 + b * k))
 
 
+def move_bubble(to):
+    """Drag SnapMark's floating button to `to` (it stays there: the plugin saves where it was left)."""
+    b = bubble_center()
+    if b and (abs(b[0] - to[0]) > 10 or abs(b[1] - to[1]) > 10):
+        sh(f'input swipe {b[0]} {b[1]} {to[0]} {to[1]} 800')
+        time.sleep(2)
+    return b
+
+
 def zoom_to_next_page():
     """Sideways, DOC's forward arrow (just right of the page counter) shows the next page zoomed to the
     screen's width (R83); reopening the document shows it upright again."""
@@ -794,8 +803,12 @@ def cmd_run(args):
             res.log = log
             results.append(res)
         # Zoomed to the width: page forward from page 1 shows page 2 zoomed; the region snap has to find
-        # that view (and its scroll) by matching the capture against the render.
+        # that view (and its scroll) by matching the capture against the render. The floating button
+        # can sit on DOC's page-forward arrow when sideways: it's moved to the top right meanwhile and
+        # put back where it was afterwards.
         lines2 = {l['n']: l for l in layout['pages'][1]['lines']}
+        open_doc(1)
+        home = move_bubble((1780, 300))
         z = 2560 / 1920
         for box in (None, tuple(round(v * z) for v in (lines2[3]['left'] - 30, lines2[3]['top'] - 20, lines2[7]['right'] + 20, lines2[7]['bottom'] + 20))):
             res = Result(f'Sideways, zoomed: {"region of " if box else ""}page 2')
@@ -821,6 +834,10 @@ def cmd_run(args):
                     res.check(1 in mark_pages_with_ink(local), 'handwriting copied', f'pages with stroke data: {mark_pages_with_ink(local)}')
             res.log = log
             results.append(res)
+        if home:
+            close_plugin_screens()
+            open_doc(1)
+            move_bubble(home)
 
     if not args.pages and not args.no_margin:
         # Margin mode: switch it on through SnapMark's settings, snap, switch it off again.
