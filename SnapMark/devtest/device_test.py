@@ -656,6 +656,10 @@ def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False, taps=Fa
     before = note_files()
     stamp = device_time()
     b = bubble_center()
+    end = time.time() + 10  # right after an install or a restart it takes a moment to come back
+    while not b and time.time() < end:
+        time.sleep(1)
+        b = bubble_center()
     if not b:
         return ['test: floating button not found'], None
     tap(b)

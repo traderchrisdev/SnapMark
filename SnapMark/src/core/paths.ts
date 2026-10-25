@@ -122,6 +122,15 @@ export function formatStamp(d: Date): string {
  * "<dir>/<Title> - p<N> - <stamp>.note", then " (2)", " (3)"... for snaps in the same minute.
  * page is 0-based; the name uses the 1-based page number people see.
  */
+/**
+ * A page background SnapMark itself made when a paste needed a new page: its note template (as an
+ * image) or white. NOTE names such a page's template "user_<file name>". It is a background, not
+ * content, unlike a snap's page image ("user_capture-<ms>-page", "user_render-…").
+ */
+export function isPasteBackgroundTemplate(templateName: string): boolean {
+  return /^user_capture-\d+-(template|blank)$/.test(templateName);
+}
+
 /** "Notes for this page": one note per document page, "<snaps>/<title>/<title> - p<N> notes.note". */
 export function pageNotesPath(snapsDirPath: string, title: string, page: number): string {
   return `${snapsDirPath}/${title}/${title} - p${page + 1} notes.note`;

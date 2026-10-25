@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.1 (2026-10-25)
+
+- **Fixed: a second paste went onto yet another new page.** When a paste into your note needs a new page, that page gets a picture of your template (dots, lines…). The next paste counted that picture as content, saw no room, and made another page. It now knows the picture is the page's background, so the next paste goes below the last one, on pages made before this fix too.
+
 ## 0.18.0 (2026-10-20)
 
 - **Notes for this page.** A new PDF/EPUB toolbar button: the first time, it makes a note for the page you're on (`<Book> - p<N> notes`), with the page shrunk at the top left (66%, or your margin size), your handwriting, the ↩ link back and the keyword, and room to write beside and below; every time after, it opens those same notes again. For pages whose margins can't hold what you want to write.

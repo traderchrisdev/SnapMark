@@ -8,7 +8,7 @@ import { PluginManager, type Element } from 'sn-plugin-lib';
 import { backlinkSpec, captionUnder, linkUnder, type Rect, type Size } from '../core/backlink';
 import { classifyApp, NOTE_PACKAGE } from '../core/apps';
 import { fitInsetsDp } from '../core/fit';
-import { baseName, captureSourceName, docTitle, hopNotePath, nativeHopPath, samePath, tmpDir, type CaptureSource } from '../core/paths';
+import { baseName, captureSourceName, docTitle, hopNotePath, isPasteBackgroundTemplate, nativeHopPath, samePath, tmpDir, type CaptureSource } from '../core/paths';
 import { insetsToPx, MARGIN_DP, pastePlacement, regionPlacement } from '../core/region';
 import { inboxPath, type Settings } from '../core/settings';
 import type { StepTimer } from '../core/timer';
@@ -236,7 +236,9 @@ export async function placeOnPage(
     return null;
   });
   let background: string | null = null;
-  if (template && !template.name.startsWith('user_')) {
+  // A note template, or the template image a paste's new page got before 0.18.1, is background: the
+  // free space is what differs from it. A snap's own page image (user_capture-…-page) is content.
+  if (template && (!template.name.startsWith('user_') || isPasteBackgroundTemplate(template.name))) {
     background = `${tmp}/${CAPTURE_PREFIX}${stamp}-template.png`;
     await Sn.templatePng(notePath, page, background).catch(e => {
       logError('paste: template image', e);
@@ -253,6 +255,9 @@ export async function placeOnPage(
   let target = page;
   if (plan.newPage) {
     target = page + 1;
+    // The new page gets an image of this page's background (insertNotePage takes an image file, not a
+    // template's name: 802), or white. NOTE names it "user_capture-…-template", which the next paste
+    // measures as background (isPasteBackgroundTemplate).
     if (!background) {
       background = `${tmp}/${CAPTURE_PREFIX}${stamp}-blank.png`;
       await Native.whitePng(background, size.width, size.height);

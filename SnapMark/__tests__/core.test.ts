@@ -37,6 +37,7 @@ import {
   snapNoteCandidates,
   tmpRenderPath,
   pageNotesPath,
+  isPasteBackgroundTemplate,
 } from '../src/core/paths';
 import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
 import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
@@ -676,5 +677,15 @@ describe('searchable snaps', () => {
 describe('notes for this page', () => {
   it('names one note per document page, in the document\'s snaps folder', () => {
     expect(pageNotesPath('/storage/emulated/0/Note/Snaps', 'Walden', 1)).toBe('/storage/emulated/0/Note/Snaps/Walden/Walden - p2 notes.note');
+  });
+});
+
+describe('a paste\'s new page background', () => {
+  it('is told apart from a snap\'s page image', () => {
+    expect(isPasteBackgroundTemplate('user_capture-1792920120752-template')).toBe(true);
+    expect(isPasteBackgroundTemplate('user_capture-1792920120752-blank')).toBe(true);
+    expect(isPasteBackgroundTemplate('user_capture-1792920120752-page')).toBe(false);
+    expect(isPasteBackgroundTemplate('user_render-strip')).toBe(false);
+    expect(isPasteBackgroundTemplate('style_5mm_dots_a5x2')).toBe(false);
   });
 });
