@@ -11,7 +11,7 @@ import { pasteQueue } from './features/queuePaste';
 import { undoLastSnap } from './features/undo';
 import { log, logError } from './platform/log';
 import { hasFilePermissions } from './platform/permissions';
-import { loadSettings, storedSettingEntries } from './platform/settingsStore';
+import { loadSettings, saveSetting, storedSettingEntries } from './platform/settingsStore';
 import { toast } from './platform/toast';
 import { describeError } from './sdk/errors';
 import { Sn } from './sdk/sn';
@@ -99,6 +99,24 @@ async function onPress(id: number): Promise<void> {
   }
 }
 
+/**
+ * After a fresh install (no settings stored yet), the welcome screen once. An update from a version
+ * before the welcome note just remembers it as seen.
+ */
+async function welcomeOnce(welcomed: boolean): Promise<void> {
+  if (welcomed) {
+    return;
+  }
+  const entries = await storedSettingEntries();
+  if (entries.length > 0) {
+    await saveSetting('welcomed', true);
+    return;
+  }
+  log('welcome: fresh install, showing the welcome screen');
+  setRoute({ name: 'welcome' });
+  await PluginManager.showPluginView();
+}
+
 export interface Icons {
   snapPage: string;
   snapRegion: string;
@@ -169,6 +187,7 @@ export async function startPlugin(icons: Icons): Promise<void> {
     e => logError('read settings', e),
   );
   const settings = await loadSettings(); // also fills the in-memory copy the floating button reads
+  welcomeOnce(settings.welcomed).catch(e => logError('welcome', e));
   startBubble(() => {
     exclusive('bubble', captureFromBubble).catch(e => logError('bubble', e));
   }, settings.bubble).catch(e => logError('start bubble', e));

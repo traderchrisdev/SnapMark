@@ -10,6 +10,7 @@ export type Route =
   | { name: 'settings' }
   | { name: 'picker'; shots: Screenshot[]; action: ShotAction }
   | { name: 'permission' }
+  | { name: 'welcome' }
   | { name: 'region'; request: RegionRequest };
 
 let current: Route = { name: 'settings' };

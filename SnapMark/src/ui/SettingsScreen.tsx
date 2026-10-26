@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, FRESHNESS_CHOICES, type Settings } from '../core/sett
 import { setBubble } from '../features/bubble';
 import { clearQueue, queuedSnaps } from '../features/queueStore';
 import { saveLog } from '../features/saveLog';
+import { openWelcomeNote } from '../features/welcome';
 import { Sn } from '../sdk/sn';
 import { baseName } from '../core/paths';
 import { logError } from '../platform/log';
@@ -233,6 +234,20 @@ export function SettingsScreen() {
 
       <Section label="Notes toolbar" hint="Screenshot notes are shrunk so the toolbar and the page bar don't cover them.">
         <Choice options={fitOptions} value={settings.screenshotFit} onChange={v => update('screenshotFit', v)} />
+      </Section>
+
+      <Section label="Getting started" hint="A short guide in Notes with a page to try SnapMark on (made again if you deleted it).">
+        <Button
+          label="Open the welcome note"
+          onPress={() =>
+            PluginManager.closePluginView()
+              .then(() => openWelcomeNote(settings))
+              .catch(e => {
+                logError('welcome note', e);
+                setStatus(`Could not open the welcome note: ${describeError(e)}`);
+              })
+          }
+        />
       </Section>
 
       {queued !== null ? (

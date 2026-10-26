@@ -700,7 +700,7 @@ async function addHandwritingAndBacklink(snap: Snap, notePage: number): Promise<
 }
 
 /** The helper note is a copy of the bundled blank (it is never written to, so its shared FILE_ID is harmless). */
-async function ensureHopNote(pluginDir: string): Promise<string> {
+export async function ensureHopNote(pluginDir: string): Promise<string> {
   // A blank made on this device by createNote, once one exists (the bundled one is a Manta's, R79).
   if (await fs.exists(nativeHopPath())) {
     return nativeHopPath();

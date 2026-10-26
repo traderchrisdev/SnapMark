@@ -207,6 +207,24 @@ def plugin_page():
     sh(f'am force-stop {SETTINGS_PKG}')
     sh(f'am start -n {SETTINGS_PKG}/.SettingsActivity')
     time.sleep(2.5)
+    for _ in range(3):  # a SnapMark screen (its settings, the welcome) left open is PluginHost's: close it
+        nodes = ui_nodes()
+        if 'Apps' in nodes:
+            break
+        close = next((k for k in ('Close', 'Not now') if k in nodes), None)
+        if close:
+            tap(nodes[close])
+        else:
+            for _ in range(4):  # scrolled: its Close is above, at the top
+                sh('input swipe 960 700 960 2300 300')
+            time.sleep(1)
+            nodes = ui_nodes()
+            close = next((k for k in ('Close', 'Not now') if k in nodes), None)
+            if close:
+                tap(nodes[close])
+            else:
+                sh('input keyevent KEYCODE_BACK')
+        time.sleep(1.5)
     tap_label('Apps')
     tap_label('Plugins')
 
@@ -299,8 +317,21 @@ def snapmark_settings(*choices):
     _, n = installed_version()
     tap(settings_row())
     time.sleep(2.5)
+
+    def to_top():  # the screen keeps its scroll position between visits
+        for _ in range(4):
+            sh('input swipe 960 700 960 2300 300')
+        time.sleep(1)
+
+    to_top()
     for label in choices:
+        for _ in range(6):  # further down the screen: scroll to it
+            if label in ui_nodes():
+                break
+            sh('input swipe 960 2000 960 1100 400')
+            time.sleep(1.2)
         tap_label(label)
+    to_top()
     tap_label('Close')
     sh('input keyevent KEYCODE_HOME')
 
@@ -1034,6 +1065,40 @@ def cmd_run(args):
         res.log = log + again
         results.append(res)
 
+    if not args.pages and not args.no_welcome:
+        # Settings → Getting started → Open the welcome note: made if missing (4 pages), opened in Notes.
+        # An existing welcome note is opened as it is (it may have the user's writing).
+        res = Result('Welcome note from Getting started')
+        wpath = '/storage/emulated/0/Note/Snaps/Welcome to SnapMark.note'
+        installed_version()
+        tap(settings_row())
+        time.sleep(3)
+        nodes = {}
+        for _ in range(6):
+            nodes = ui_nodes()
+            if 'Open the welcome note' in nodes:
+                break
+            sh('input swipe 960 2000 960 900 400')
+            time.sleep(1.5)
+        res.check('Open the welcome note' in nodes, 'Getting started row in the settings', '')
+        log = []
+        if 'Open the welcome note' in nodes:
+            adb('logcat', '-c', check=False)
+            stamp = device_time()
+            tap(nodes['Open the welcome note'])
+            wait_for(stamp, r'^welcome: opened|^ERROR', 90)
+            time.sleep(3)
+            log = snapmark_lines(stamp)
+            opened = next((l for l in log if l.startswith('welcome: opened')), '')
+            res.check(opened, 'opened in Notes', opened or (log[-1] if log else 'no log'))
+            res.check('NoteInsidePagesActivity' in resumed(), 'Notes is in front', '')
+            local = os.path.join(out_dir, 'welcome.note')
+            adb('pull', wpath, local)
+            res.check(os.path.exists(local) and note_pages(local) >= 4, 'four pages', f'{note_pages(local) if os.path.exists(local) else 0} pages')
+        res.log = log
+        results.append(res)
+        sh('input keyevent KEYCODE_HOME')
+
     inbox = '/storage/emulated/0/Note/Snaps/Snaps inbox.note'
     if not args.pages and not args.no_inbox:
         if sh(f'ls {shlex.quote(inbox)}', check=False).strip():
@@ -1120,6 +1185,7 @@ def main():
     r.add_argument('--no-sideways', action='store_true', help='skip the snaps with the device turned sideways')
     r.add_argument('--no-queue', action='store_true', help='skip the capture queue (queue three boxes, paste them, undo)')
     r.add_argument('--no-page-notes', action='store_true', help='skip Notes for this page (make, then reopen)')
+    r.add_argument('--no-welcome', action='store_true', help='skip opening the welcome note from Getting started')
     args = p.parse_args()
     {'setup': cmd_setup, 'setup-extra': cmd_setup_extra, 'save-ink': cmd_save_ink, 'run': cmd_run}[args.cmd](args)
 

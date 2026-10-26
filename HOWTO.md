@@ -37,13 +37,15 @@ SnapMark is a Supernote plugin that turns what's on your screen into a note you 
 
 ## First run
 
+Right after you install SnapMark, a **Welcome** screen offers to turn on the floating capture button and to open **Welcome to SnapMark**, a four-page guide in Notes with a page to try it on. The guide is saved in your Snaps folder; open it again any time from SnapMark's settings, **Getting started → Open the welcome note** (it's made again if you deleted it).
+
 The first time you use a SnapMark button, it shows **"SnapMark needs file access"**. Tap **Continue**, then **Always allow** in the system dialog. SnapMark needs file access to save your snaps as notes.
 
 SnapMark's buttons are in the **plugin menu of the side toolbar**:
 
 | In a document (PDF, EPUB) | In a note |
 |---|---|
-| **Snap page**, **Snap region** | **Annotate screenshot**, **Insert screenshot**, **Export page as PNG** |
+| **Snap page**, **Snap region**, **Notes for this page** | **Paste queued snaps**, **Undo last snap**, **Annotate screenshot**, **Insert screenshot**, **Export page as PNG** |
 
 The **floating capture button** is separate and off by default; see below.
 

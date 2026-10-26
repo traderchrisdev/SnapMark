@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0 (2026-10-26)
+
+- **A welcome for new users.** Right after a fresh install, a short Welcome screen offers to turn on the floating capture button and to open **Welcome to SnapMark**: a four-page guide in Notes (where the buttons are, boxing a part, what comes along, and a page to try it on), fitted to your device's screen. Open it again any time from SnapMark's settings, **Getting started**. Updating from an earlier version doesn't show the Welcome screen.
+
 ## 0.18.1 (2026-10-25)
 
 - **Fixed: a second paste went onto yet another new page.** When a paste into your note needs a new page, that page gets a picture of your template (dots, lines…). The next paste counted that picture as content, saw no room, and made another page. It now knows the picture is the page's background, so the next paste goes below the last one, on pages made before this fix too.

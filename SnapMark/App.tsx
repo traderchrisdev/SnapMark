@@ -9,6 +9,7 @@ import { PickerScreen } from './src/ui/PickerScreen';
 import { RegionScreen } from './src/ui/RegionScreen';
 import { useRoute } from './src/ui/route';
 import { SettingsScreen } from './src/ui/SettingsScreen';
+import { WelcomeScreen } from './src/ui/WelcomeScreen';
 
 function App(): React.JSX.Element {
   const route = useRoute();
@@ -17,6 +18,8 @@ function App(): React.JSX.Element {
       return <PickerScreen shots={route.shots} action={route.action} />;
     case 'permission':
       return <PermissionScreen />;
+    case 'welcome':
+      return <WelcomeScreen />;
     case 'region':
       // Keyed by capture: each capture starts with a fresh, empty box.
       return <RegionScreen key={route.request.capture.path} request={route.request} />;

@@ -46,6 +46,8 @@ export interface Settings {
   screenshotFit: ScreenshotFit;
   /** Snaps from a PDF or EPUB carry the page's text (hidden) and a "Book p. N" keyword for search. */
   searchable: boolean;
+  /** The welcome screen was shown (or this was an update, not a fresh install). */
+  welcomed: boolean;
 }
 
 export const FRESHNESS_CHOICES = [0, 2, 5, 10, 30, 60] as const;
@@ -63,6 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bubbleAction: 'region',
   screenshotFit: 'left',
   searchable: true,
+  welcomed: false,
 };
 
 export function snapsDir(s: Settings): string {
@@ -99,6 +102,7 @@ const VALIDATE: Validators = {
   bubbleAction: v => (v === 'region' || v === 'whole' ? v : undefined),
   screenshotFit: v => (SCREENSHOT_FITS as readonly unknown[]).includes(v) ? (v as ScreenshotFit) : undefined,
   searchable: bool,
+  welcomed: bool,
 };
 
 export function isSettingKey(k: string): k is keyof Settings {
