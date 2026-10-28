@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.1 (2026-10-28)
+
+- **Fixed: a paste onto a page with your own template went onto a new page.** On a template you imported yourself (from MyStyle, like a journal or planner page), SnapMark counted the template's lines as writing, saw no room, and made a new page even on an empty one. Your own templates now count as the page's background, like Notes' built-in ones, so the paste goes onto the page you're on, below what's already there.
+
 ## 0.19.0 (2026-10-26)
 
 - **A welcome for new users.** Right after a fresh install, a short Welcome screen offers to turn on the floating capture button and to open **Welcome to SnapMark**: a four-page guide in Notes (where the buttons are, boxing a part, what comes along, and a page to try it on), fitted to your device's screen. Open it again any time from SnapMark's settings, **Getting started**. Updating from an earlier version doesn't show the Welcome screen.

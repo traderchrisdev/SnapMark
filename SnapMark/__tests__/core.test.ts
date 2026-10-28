@@ -37,7 +37,7 @@ import {
   snapNoteCandidates,
   tmpRenderPath,
   pageNotesPath,
-  isPasteBackgroundTemplate,
+  isBackgroundTemplate,
 } from '../src/core/paths';
 import { isLineHighlight, markerBand, underlineOffsetPx, underlinePoints, underlineUnderText } from '../src/core/highlights';
 import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness } from '../src/core/margin';
@@ -680,12 +680,21 @@ describe('notes for this page', () => {
   });
 });
 
-describe('a paste\'s new page background', () => {
-  it('is told apart from a snap\'s page image', () => {
-    expect(isPasteBackgroundTemplate('user_capture-1792920120752-template')).toBe(true);
-    expect(isPasteBackgroundTemplate('user_capture-1792920120752-blank')).toBe(true);
-    expect(isPasteBackgroundTemplate('user_capture-1792920120752-page')).toBe(false);
-    expect(isPasteBackgroundTemplate('user_render-strip')).toBe(false);
-    expect(isPasteBackgroundTemplate('style_5mm_dots_a5x2')).toBe(false);
+describe('a page template as background', () => {
+  it('is NOTE\'s templates, a paste\'s new page and people\'s own templates', () => {
+    expect(isBackgroundTemplate('style_5mm_dots_a5x2')).toBe(true);
+    expect(isBackgroundTemplate('user_capture-1792920120752-template')).toBe(true);
+    expect(isBackgroundTemplate('user_capture-1792920120752-blank')).toBe(true);
+    expect(isBackgroundTemplate('user_Journal Title')).toBe(true);
+    expect(isBackgroundTemplate('user_cornell notes')).toBe(true);
+  });
+
+  it('is not a snap\'s own page image', () => {
+    expect(isBackgroundTemplate('user_capture-1792920120752-page')).toBe(false);
+    expect(isBackgroundTemplate('user_capture-1792920120752')).toBe(false);
+    expect(isBackgroundTemplate('user_render-1792920120752')).toBe(false);
+    expect(isBackgroundTemplate('user_render-strip')).toBe(false);
+    expect(isBackgroundTemplate('user_fit-1792920120752')).toBe(false);
+    expect(isBackgroundTemplate('user_welcome-4')).toBe(false);
   });
 });

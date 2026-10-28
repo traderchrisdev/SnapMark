@@ -123,12 +123,18 @@ export function formatStamp(d: Date): string {
  * page is 0-based; the name uses the 1-based page number people see.
  */
 /**
- * A page background SnapMark itself made when a paste needed a new page: its note template (as an
- * image) or white. NOTE names such a page's template "user_<file name>". It is a background, not
- * content, unlike a snap's page image ("user_capture-<ms>-page", "user_render-…").
+ * Whether a page's template is background, so a paste measures free space as what differs from it.
+ * NOTE names an image template "user_<file name>". SnapMark's own page images (a snap's page,
+ * "user_capture-<ms>-page", "user_render-…", an annotated screenshot "user_fit-…", the welcome note's
+ * "user_welcome-N") are content. Everything else is background: NOTE's templates, the page image a
+ * paste's new page got ("user_capture-<ms>-template" or "-blank"), and templates people import
+ * themselves ("user_Journal Title").
  */
-export function isPasteBackgroundTemplate(templateName: string): boolean {
-  return /^user_capture-\d+-(template|blank)$/.test(templateName);
+export function isBackgroundTemplate(templateName: string): boolean {
+  if (/^user_capture-\d+-(template|blank)$/.test(templateName)) {
+    return true;
+  }
+  return !/^user_(capture-|render|fit-|welcome-|cut$)/.test(templateName);
 }
 
 /** "Notes for this page": one note per document page, "<snaps>/<title>/<title> - p<N> notes.note". */
