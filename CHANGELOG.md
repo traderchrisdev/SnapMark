@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.3 (2026-11-10)
+
+- **Fixed: "Snap failed" for a snap that worked.** Right after the floating button's screen closed, Notes could take a moment to be ready, and opening the new snap failed ("The handwriting app is not open"), leaving a blank note behind. SnapMark now waits for Notes for a few seconds and opens it.
+- For developers: the device test opens the note again when Notes' plugins menu doesn't show Undo last snap (and saves a screenshot if it still doesn't), and removes snaps of the test documents that interrupted runs left behind.
+
 ## 0.19.2 (2026-11-10)
 
 - **A5X and A6X: the floating button and Snap region can capture the screen.** These run an older Android than the Manta and Nomad, where the screen capture SnapMark used doesn't exist ("NoSuchMethodException: getInternalDisplayToken"). SnapMark now uses the older one there. Not yet tested on an A5X/A6X: if something still doesn't work, please send a log (SnapMark's settings → Save a log file).

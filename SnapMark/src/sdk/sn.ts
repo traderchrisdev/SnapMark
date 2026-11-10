@@ -13,7 +13,11 @@ import {
 } from 'sn-plugin-lib';
 import type { Rect, Size, TextLinkSpec } from '../core/backlink';
 import { fromEmr, toEmr, type Point } from '../core/emr';
-import { SnApiError } from './errors';
+import { CODE_NOTE_NOT_READY, errorCode, SnApiError } from './errors';
+
+/** openFile answering 118 (no app to route to yet) is retried this long, this often. */
+const OPEN_RETRY_MS = 4000;
+const OPEN_RETRY_EVERY_MS = 250;
 
 interface RawResponse<T> {
   success: boolean;
@@ -152,8 +156,28 @@ export const Sn = {
     );
   },
 
-  /** Resolves before PluginHost re-targets calls to the opened app: follow with waitUntilCurrent(). */
-  openFile: (path: string, page: number) => callOk('openFile', PluginFileAPI.openFile(path, page)),
+  /**
+   * Resolves before PluginHost re-targets calls to the opened app: follow with waitUntilCurrent().
+   * Right after SnapMark's own screen closes, PluginHost can briefly route the call to no app (118,
+   * R91): retried for a few seconds, so a finished snap isn't reported as failed.
+   */
+  openFile: async (path: string, page: number): Promise<void> => {
+    const end = Date.now() + OPEN_RETRY_MS;
+    for (;;) {
+      try {
+        return await callOk('openFile', PluginFileAPI.openFile(path, page));
+      } catch (e) {
+        if (errorCode(e) !== CODE_NOTE_NOT_READY || Date.now() >= end) {
+          throw e;
+        }
+      }
+      // JS timers stall once another app is in front (R34): wait on a cheap SDK call instead.
+      const until = Date.now() + OPEN_RETRY_EVERY_MS;
+      while (Date.now() < until) {
+        await PluginManager.getDeviceType();
+      }
+    }
+  },
 
   /** 0 not encrypted, 1 encrypted and locked, 2 encrypted and unlocked for this plugin session. */
   encryptionStatus: (path: string) => call<number>('getPathEncryptionStatus', PluginFileAPI.getPathEncryptionStatus(path)),

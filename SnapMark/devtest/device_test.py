@@ -22,6 +22,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = None  # this run's out/<stamp>, for screenshots of what went wrong
 PDF_NAME = 'SnapMark test.pdf'
 PDF_LOCAL = os.path.join(HERE, PDF_NAME)
 # Other shapes of document (R81). Their ink fixtures, once drawn, sit next to the main one.
@@ -413,17 +414,29 @@ def doc_plugin_button(page, label, done_pattern, timeout=60):
     return snapmark_lines(stamp)
 
 
-def press_undo():
-    """Tap SnapMark's "Undo last snap" in the Notes toolbar's plugins menu; returns SnapMark's log lines."""
+def press_undo(note=None):
+    """Tap SnapMark's "Undo last snap" in the Notes toolbar's plugins menu; returns SnapMark's log lines.
+    `note`: the note it should be done in, opened again when the menu doesn't come up (right after a
+    snap Notes can still be reloading it and miss the taps)."""
     nodes = None
-    for _ in range(2):  # right after a reload Notes can miss the tap: try once more
+    for attempt in range(3):
+        if attempt:
+            if 'Manage Plugins' in ui_nodes():  # a menu that came up without the button
+                sh('input keyevent KEYCODE_BACK')
+                time.sleep(1)
+            if note:
+                open_note(note)
+            else:
+                time.sleep(2)
         tap(NOTE_PLUGINS_ICON)
         nodes = wait_ui('Undo last snap', 8)
         if nodes:
             break
-        time.sleep(2)
     if not nodes:
-        return ['test: "Undo last snap" not in the plugins menu']
+        shot = os.path.join(OUT_DIR or HERE, f'undo-menu-missing-{int(time.time())}.png')
+        with open(shot, 'wb') as f:
+            f.write(adb('exec-out', 'screencap', '-p', text=False, check=False))
+        return [f'test: "Undo last snap" not in the plugins menu ({resumed() or "?"}; screen: {os.path.basename(shot)})']
     adb('logcat', '-c', check=False)
     stamp = device_time()
     tap(nodes['Undo last snap'])
@@ -621,6 +634,22 @@ def check_settings(settings):
 SNAP_DIRS = ['/storage/emulated/0/Note/Snaps/SnapMark test', '/storage/emulated/0/Note/Snaps/Screenshots', '/storage/emulated/0/Note/Snaps']
 
 
+# Snaps of the test documents only (their titles start with "SnapMark test"): a run that was
+# interrupted or failed before its clean-up leaves them behind, and their keywords show in Search.
+TEST_SNAP_GLOBS = ["'/storage/emulated/0/Note/Snaps/SnapMark test'/*.note",
+                   "'/storage/emulated/0/Note/Snaps/SnapMark test landscape'/*.note",
+                   "/storage/emulated/0/Note/Snaps/Screenshots/'SnapMark test'*.note"]
+
+
+def sweep_test_snaps():
+    """Removes snaps of the test documents left by earlier runs; returns how many."""
+    listed = sh(' ; '.join(f'ls {g} 2>/dev/null' for g in TEST_SNAP_GLOBS), check=False)
+    paths = [l.strip() for l in listed.splitlines() if l.strip().endswith('.note')]
+    for p in paths:
+        sh(f'rm -f {shlex.quote(p)}', check=False)
+    return len(paths)
+
+
 def note_files():
     out = sh(' ; '.join(f'ls {shlex.quote(d)}/*.note 2>/dev/null' for d in SNAP_DIRS), check=False)
     return {l.strip() for l in out.splitlines() if l.strip().endswith('.note')}
@@ -733,12 +762,18 @@ def _snap(page, region_box=None, doc=None, sideways=False, zoomed=False, taps=Fa
 def cmd_run(args):
     layout = json.load(open(os.path.join(HERE, 'layout.json')))
     with_ink = os.path.exists(MARK_LOCAL)
+    global OUT_DIR
     out_dir = os.path.join(HERE, 'out', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+    OUT_DIR = out_dir
     os.makedirs(out_dir, exist_ok=True)
     if 'device' not in adb('get-state', check=False):
         raise SystemExit('no device: plug in the Supernote and allow USB debugging')
     sh('input keyevent KEYCODE_WAKEUP')
     close_plugin_screens()
+    if not args.keep:
+        swept = sweep_test_snaps()
+        if swept:
+            print(f'  (removed {swept} snap(s) of the test documents left by earlier runs)')
     if args.install:
         install(args.install if args.install != 'build' else BUILD)
 
@@ -980,7 +1015,7 @@ def cmd_run(args):
                 render_note(after_local, after_local.replace('.note', '.png'), (grew or [1])[-1] - 1)
                 if page == LAST_PAGE:
                     # Undo last snap (Notes toolbar → plugins): the note must be as it was before this paste.
-                    ulog = press_undo()
+                    ulog = press_undo(target)
                     undone_local = os.path.join(out_dir, f'paste-target-undone-p{page}.note')
                     adb('pull', target, undone_local)
                     said = next((l for l in ulog if l.startswith('undo: ') and ('Removed' in l or "Can't" in l or 'Nothing' in l)), '')
@@ -1029,7 +1064,7 @@ def cmd_run(args):
             res.check(not errors, 'no errors logged', errors[0] if errors else '')
             for i in range(note_pages(after_local)):
                 render_note(after_local, after_local.replace('.note', f'-p{i + 1}.png'), i)
-            ulog = press_undo()
+            ulog = press_undo(target)
             log += ulog
             undone_local = os.path.join(out_dir, 'queue-target-undone.note')
             adb('pull', target, undone_local)
@@ -1123,7 +1158,7 @@ def cmd_run(args):
                             res.check(2 in mark_pages_with_ink(local), 'last page: ink added to inbox page 2',
                                       f'pages with stroke data: {mark_pages_with_ink(local)}')
                         # Undo last snap takes the inbox page back (Notes shows the inbox after "Open it").
-                        ulog = press_undo()
+                        ulog = press_undo(path)
                         undone = os.path.join(out_dir, 'inbox-undone.note')
                         adb('pull', path, undone)
                         said = next((l for l in ulog if l.startswith('undo: ') and ('Removed' in l or "Can't" in l or 'Nothing' in l)), '')
@@ -1150,6 +1185,8 @@ def cmd_run(args):
     if not args.keep:
         for path in made:
             sh(f'rm -f {shlex.quote(path)}', check=False)
+        for d in ('SnapMark test', 'SnapMark test landscape'):  # their folders too, once empty
+            sh(f"rmdir {shlex.quote('/storage/emulated/0/Note/Snaps/' + d)} 2>/dev/null", check=False)
     open_doc(1)
 
     report = []
@@ -1174,7 +1211,7 @@ def main():
     r = sub.add_parser('run')
     r.add_argument('--pages', help='comma-separated pages to snap (default 1,2,3 plus a region snap)')
     r.add_argument('--extra', help='"region" to add the region snap when --pages is given')
-    r.add_argument('--keep', action='store_true', help='keep the snaps on the device')
+    r.add_argument('--keep', action='store_true', help='keep the snaps on the device (the next run without --keep removes them)')
     r.add_argument('--install', nargs='?', const='build', metavar='SNPLG',
                    help='install a package first through Settings (default: build/outputs/SnapMark.snplg)')
     r.add_argument('--no-margin', action='store_true', help='skip the margin-mode snaps (they switch the setting to 75%% and back)')
