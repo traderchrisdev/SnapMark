@@ -93,7 +93,11 @@ async function exclusive(label: string, task: () => Promise<void>): Promise<void
   }
 }
 
-async function onPress(id: number): Promise<void> {
+async function onPress(raw: unknown): Promise<void> {
+  // Logged, so a log shows whether a tap reached SnapMark at all (an A5X tapped Snap page and nothing
+  // happened). Older firmware might send the id as text.
+  const id = Number(raw);
+  log(`button ${JSON.stringify(raw)} pressed`);
   if (BUTTONS.has(id)) {
     await exclusive(`button ${id}`, () => run(id));
   }

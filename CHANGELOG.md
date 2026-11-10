@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.2 (2026-11-10)
+
+- **A5X and A6X: the floating button and Snap region can capture the screen.** These run an older Android than the Manta and Nomad, where the screen capture SnapMark used doesn't exist ("NoSuchMethodException: getInternalDisplayToken"). SnapMark now uses the older one there. Not yet tested on an A5X/A6X: if something still doesn't work, please send a log (SnapMark's settings → Save a log file).
+- Save a log file now notes the Android version, and the log shows each SnapMark button you tap.
+
 ## 0.19.1 (2026-10-28)
 
 - **Fixed: a paste onto a page with your own template went onto a new page.** On a template you imported yourself (from MyStyle, like a journal or planner page), SnapMark counted the template's lines as writing, saw no room, and made a new page even on an empty one. Your own templates now count as the page's background, like Notes' built-in ones, so the paste goes onto the page you're on, below what's already there.

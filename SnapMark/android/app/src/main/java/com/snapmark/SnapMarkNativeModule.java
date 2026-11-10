@@ -27,6 +27,7 @@ import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -829,25 +830,46 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         return m;
     }
 
-    /** Android 10/11: SurfaceControl.screenshot(crop, w, h, rotation), as SystemUI does; 12+: captureDisplay. */
+    /**
+     * As SystemUI does: Android 8 (the A5X and A6X), SurfaceControl.screenshot(w, h) in the display's
+     * natural orientation, turned upright; 9-11, screenshot(crop, w, h, rotation); 12+, captureDisplay.
+     */
     private Bitmap screenshot() throws Exception {
         Class<?> sc = Class.forName("android.view.SurfaceControl");
         Display display = ((WindowManager) getReactApplicationContext().getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
         DisplayMetrics real = new DisplayMetrics();
         display.getRealMetrics(real);
+        int rotation = display.getRotation();
         Bitmap b;
-        try {
-            Method shot = sc.getMethod("screenshot", Rect.class, int.class, int.class, int.class);
-            b = (Bitmap) shot.invoke(null, new Rect(0, 0, real.widthPixels, real.heightPixels),
-                    real.widthPixels, real.heightPixels, display.getRotation());
-        } catch (NoSuchMethodException e) {
-            Object token = sc.getMethod("getInternalDisplayToken").invoke(null);
-            Class<?> argsClass = Class.forName("android.view.SurfaceControl$DisplayCaptureArgs");
-            Class<?> builderClass = Class.forName("android.view.SurfaceControl$DisplayCaptureArgs$Builder");
-            Object builder = builderClass.getConstructor(IBinder.class).newInstance(token);
-            Object args = builderClass.getMethod("build").invoke(builder);
-            Object buffer = sc.getMethod("captureDisplay", argsClass).invoke(null, args);
-            b = buffer == null ? null : (Bitmap) buffer.getClass().getMethod("asBitmap").invoke(buffer);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            boolean turned = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270;
+            int w = turned ? real.heightPixels : real.widthPixels;
+            int h = turned ? real.widthPixels : real.heightPixels;
+            b = (Bitmap) sc.getMethod("screenshot", int.class, int.class).invoke(null, w, h);
+            if (b != null && rotation != Surface.ROTATION_0) {
+                Bitmap upright = Bitmap.createBitmap(real.widthPixels, real.heightPixels, Bitmap.Config.ARGB_8888);
+                Canvas c = new Canvas(upright);
+                c.translate(upright.getWidth() / 2f, upright.getHeight() / 2f);
+                c.rotate(360f - rotation * 90f);
+                c.translate(-w / 2f, -h / 2f);
+                c.drawBitmap(b, 0, 0, null);
+                b.recycle();
+                b = upright;
+            }
+        } else {
+            try {
+                Method shot = sc.getMethod("screenshot", Rect.class, int.class, int.class, int.class);
+                b = (Bitmap) shot.invoke(null, new Rect(0, 0, real.widthPixels, real.heightPixels),
+                        real.widthPixels, real.heightPixels, rotation);
+            } catch (NoSuchMethodException e) {
+                Object token = sc.getMethod("getInternalDisplayToken").invoke(null);
+                Class<?> argsClass = Class.forName("android.view.SurfaceControl$DisplayCaptureArgs");
+                Class<?> builderClass = Class.forName("android.view.SurfaceControl$DisplayCaptureArgs$Builder");
+                Object builder = builderClass.getConstructor(IBinder.class).newInstance(token);
+                Object args = builderClass.getMethod("build").invoke(builder);
+                Object buffer = sc.getMethod("captureDisplay", argsClass).invoke(null, args);
+                b = buffer == null ? null : (Bitmap) buffer.getClass().getMethod("asBitmap").invoke(buffer);
+            }
         }
         if (b == null) throw new IllegalStateException("screenshot returned nothing");
         return b;

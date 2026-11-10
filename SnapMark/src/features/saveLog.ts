@@ -1,7 +1,7 @@
 // "Save a log file" (settings): SnapMark's recent log lines, plus the device and settings, as a text
 // file in EXPORT/ the user can send with a bug report. Nothing is sent anywhere by SnapMark.
 
-import { Dimensions, PixelRatio } from 'react-native';
+import { Dimensions, PixelRatio, Platform } from 'react-native';
 import { EXPORT_DIR, formatStamp, tmpDir } from '../core/paths';
 import type { Settings } from '../core/settings';
 import { recentLog } from '../platform/log';
@@ -23,7 +23,7 @@ export async function saveLog(settings: Settings): Promise<string> {
   const device = await Promise.resolve(Sn.deviceType()).catch(() => '?');
   const header = [
     'SnapMark log. It may contain the names of your notes and documents; check it before you share it.',
-    `SnapMark ${VERSION}, sn-plugin-lib ${LIB_VERSION}, device type ${JSON.stringify(device)}`,
+    `SnapMark ${VERSION}, sn-plugin-lib ${LIB_VERSION}, device type ${JSON.stringify(device)}, Android API ${Platform.Version}`,
     `screen ${Math.round(screen.width * PixelRatio.get())}x${Math.round(screen.height * PixelRatio.get())} px (ratio ${PixelRatio.get()})`,
     `settings ${JSON.stringify(settings)}`,
     '',
