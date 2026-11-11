@@ -19,6 +19,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > • **Notes for this page:** one note per PDF or EPUB page to write in, made the first time and reopened after.
 > • **Capture queue:** box several parts while you read (Queue), then paste them all into your note at once with their ink and links.
 > • **Undo last snap** takes back the last paste, queue paste or inbox page.
+> • **A welcome for new users:** a short Welcome screen and a four-page guide in Notes, fitted to your screen (open it again from the settings, Getting started).
 > • **Annotate / Insert screenshot**, **Export page as PNG**, a **Snaps inbox** that collects every snap in one notebook, a **margin mode** for writing room, and **Save a log file** for bug reports.
 >
 > Asks only for file access and has no internet access: nothing leaves your device. Works on Manta and Nomad, upright or turned sideways (firmware with plugin support). Free and open source (MIT). Guide and FAQ: snapmark.ink
@@ -29,7 +30,8 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).
-> - PNG exports go to `EXPORT/`.
+> - The **Welcome to SnapMark** guide (offered once after a fresh install, and from the settings) is a four-page note made in the same snaps folder from images bundled in the plugin.
+> - PNG exports and the log file go to `EXPORT/`.
 > - SnapMark reads `SCREENSHOT/` and the open document.
 > - It never deletes or overwrites user files. Every file delete is restricted in code to its own private plugin folder (`src/sdk/fs.ts`, `assertPrivate`) and only removes its temporary images.
 > - **Searchable snaps** (a setting, on by default): reads the document page's text with `getCurrentDocText`, then adds `insertKeyWord` and, only in notes SnapMark itself creates (and Snaps inbox pages), a hidden layer (`insertLayer`, `isVisible: false`) holding one text box with that text. A paste into the user's own note gets only the keyword.
@@ -41,7 +43,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 >
 > **What the native code does** (`SnapMarkNativeModule.java`; items 1–4 are used only by the optional floating button, which is off by default):
 > 1. **The button:** shows a small `TYPE_APPLICATION_OVERLAY` button, the same technique SuperDashboard uses.
-> 2. **The capture:** when the user taps it, takes one screenshot with `SurfaceControl.screenshot`, with the button hidden. The image is saved in the plugin's private folder and turned into a note on the device; it is never sent anywhere. Nothing is captured without a tap.
+> 2. **The capture:** when the user taps it, takes one screenshot with `SurfaceControl.screenshot`, with the button hidden (on Android 8, as on the A5X and A6X, the older `screenshot(width, height)` overload, turned upright as a bitmap). The image is saved in the plugin's private folder and turned into a note on the device; it is never sent anywhere. Nothing is captured without a tap.
 > 3. **Which app is in front:** `getRunningTasks`, with `dumpsys activity activities` as a fallback, so it can name the note after the app and know whether Notes must be brought forward.
 > 4. **Switching apps:** `moveTaskToFront` to bring Notes forward (or back to the user's app for "Stay here"), plus an intent that opens a note in Notes.
 > 5. **The pen after the selection screen:** `PluginApp.showPluginView(0)` via reflection, after the region-selection screen closes, so NOTE and DOC re-enable pen input. Without it the pen could stay disabled.
