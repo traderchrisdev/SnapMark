@@ -301,6 +301,9 @@ def save_log_check():
         path = '/storage/emulated/0/' + status.replace('Saved ', '')
         head = sh(f'head -3 {shlex.quote(path)}', check=False)
         res.check('SnapMark ' in head and 'sn-plugin-lib' in head and 'device type' in head, 'has version, library and device type', head.splitlines()[1] if len(head.splitlines()) > 1 else head)
+        # The run restarted SnapMark, so the log file kept the session before (R92).
+        full = sh(f'cat {shlex.quote(path)}', check=False)
+        res.check('Before SnapMark last started' in full, 'has the end of the previous session', f'{len(full.splitlines())} lines')
         sh(f'rm -f {shlex.quote(path)}', check=False)
     for _ in range(4):  # back to the top, where Close is
         if 'Close' in ui_nodes():

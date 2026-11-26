@@ -28,7 +28,7 @@ export async function saveLog(settings: Settings): Promise<string> {
     `settings ${JSON.stringify(settings)}`,
     '',
   ];
-  const text = [...header, ...recentLog(), ''].join('\n');
+  const text = [...header, ...recentLog(), '', ...(await previousSession()), ''].join('\n');
   const tmp = `${tmpDir(await Sn.pluginDir())}/snapmark-log.txt`;
   await Native.writeText(tmp, text);
   try {
@@ -40,6 +40,19 @@ export async function saveLog(settings: Settings): Promise<string> {
   } finally {
     await fs.remove(tmp).catch(() => undefined);
   }
+}
+
+/** Lines of the previous session's end kept in the saved log. */
+const PREVIOUS_LINES = 150;
+
+/** The end of the session before this one: after a crash, what SnapMark was doing (R92). */
+async function previousSession(): Promise<string[]> {
+  const text = await Native.previousLog().catch(() => '');
+  const prev = text.split('\n').filter(l => l.length > 0);
+  if (!prev.length) {
+    return [];
+  }
+  return ['Before SnapMark last started (the end of the previous log):', ...prev.slice(-PREVIOUS_LINES)];
 }
 
 function* logCandidates(stamp: string): Generator<string> {

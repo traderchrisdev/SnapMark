@@ -38,7 +38,7 @@ import {
   tmpDir,
   tmpRenderPath,
 } from '../core/paths';
-import { PixelRatio } from 'react-native';
+import { PixelRatio, Platform } from 'react-native';
 import { fitInsetsDp } from '../core/fit';
 import { docFrames, inNote, uprightView, viewedAs, widthView, fitLayout, isIdentity, marginLayout, scalePoints, scaleThickness, type DocFrames, type MarginLayout } from '../core/margin';
 import { insetsToPx } from '../core/region';
@@ -88,6 +88,9 @@ interface Snap {
 
 /** Dark pixels in a link's spot before it counts as text rather than a blank margin. */
 const ZONE_INK_LIMIT = 40;
+
+/** Android 9 (API 28): from here on PdfRenderer is safe to use (R92). */
+const ANDROID_9 = 28;
 
 /** Highlights read from the page, before they become underlines. */
 export interface Handwriting {
@@ -502,7 +505,9 @@ async function buildInk(docPath: string, page: number, pageSize: Size, render: s
  */
 export async function docFramesOf(docPath: string, page: number, pageSize: Size): Promise<DocFrames> {
   const isPdf = /\.pdf$/i.test(docPath);
-  const pdf = isPdf && Native.available ? await Native.pdfPageSize(docPath, page).catch(e => {
+  // Not on Android 8 (A5X, A6X): its PdfRenderer can crash SnapMark on some PDFs (R92). A landscape
+  // page there is snapped like a portrait one.
+  const pdf = isPdf && Native.available && Number(Platform.Version) >= ANDROID_9 ? await Native.pdfPageSize(docPath, page).catch(e => {
     logError('PDF page size (assuming a portrait page)', e);
     return null;
   }) : null;

@@ -737,6 +737,12 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
     /** A PDF page's own size in points (to tell a landscape page, R81), from Android's PdfRenderer. */
     @ReactMethod
     public void pdfPageSize(String path, int page, Promise promise) {
+        // Android 8's PdfRenderer (pdfium) can crash the whole process on some PDFs (SIGSEGV while
+        // loading a page), which no catch stops: an A5X restarted SnapMark on every PDF snap (R92).
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            promise.reject("E_PDF", "PdfRenderer is not used on Android " + Build.VERSION.RELEASE + " (it can crash there)");
+            return;
+        }
         new Thread(() -> {
             try (android.os.ParcelFileDescriptor fd = android.os.ParcelFileDescriptor.open(new File(path), android.os.ParcelFileDescriptor.MODE_READ_ONLY);
                  android.graphics.pdf.PdfRenderer pdf = new android.graphics.pdf.PdfRenderer(fd)) {
@@ -768,6 +774,66 @@ public class SnapMarkNativeModule extends ReactContextBaseJavaModule {
         } catch (Throwable e) {
             Log.e(TAG, "writeText failed", e);
             promise.reject("E_WRITE", e.toString(), e);
+        }
+    }
+
+    // The log, also kept in a file, so a crash that ends the process (and the in-memory log with it)
+    // still leaves its last lines: the first line after a start moves the old file to "previous".
+    private static final Object LOG_LOCK = new Object();
+    private static boolean logRotated = false;
+    private static int logLines = 0;
+    /** A long session starts a new file after this many lines (the old one becomes "previous"). */
+    private static final int LOG_MAX_LINES = 3000;
+
+    private File logFile(String name) {
+        return new File(getReactApplicationContext().getFilesDir(), name);
+    }
+
+    private void rotateLog() {
+        File prev = logFile("snapmark-log-previous.txt");
+        prev.delete();
+        logFile("snapmark-log.txt").renameTo(prev);
+        logLines = 0;
+    }
+
+    /** Appends one log line to the log file. */
+    @ReactMethod
+    public void appendLog(String line) {
+        synchronized (LOG_LOCK) {
+            try {
+                if (!logRotated || logLines >= LOG_MAX_LINES) {
+                    rotateLog();
+                    logRotated = true;
+                }
+                try (FileOutputStream out = new FileOutputStream(logFile("snapmark-log.txt"), true)) {
+                    out.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                }
+                logLines++;
+            } catch (Throwable e) {
+                Log.w(TAG, "appendLog failed", e);
+            }
+        }
+    }
+
+    /** The previous log file's text ("" if none): the end of the session before this one. */
+    @ReactMethod
+    public void previousLog(Promise promise) {
+        synchronized (LOG_LOCK) {
+            try {
+                File prev = logFile("snapmark-log-previous.txt");
+                if (!logRotated) {
+                    // Nothing logged yet in this process: the current file is still the last session's.
+                    prev = logFile("snapmark-log.txt");
+                }
+                if (!prev.exists()) {
+                    promise.resolve("");
+                    return;
+                }
+                byte[] data = java.nio.file.Files.readAllBytes(prev.toPath());
+                promise.resolve(new String(data, StandardCharsets.UTF_8));
+            } catch (Throwable e) {
+                promise.reject("E_READ", e.toString(), e);
+            }
         }
     }
 

@@ -26,7 +26,7 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 
 ## Note for the reviewer
 
-> Thank you for reviewing SnapMark 0.19.3. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
+> Thank you for reviewing SnapMark 0.19.4. Full source: https://github.com/traderchrisdev/SnapMark (MIT).
 >
 > **Permissions:** `FILE:READ` and `FILE:WRITE` only.
 > - Snaps are written as new notes under `Note/Snaps/` (the folder is configurable).
@@ -47,8 +47,8 @@ The text to paste when uploading SnapMark to InkHub on the device, and the note 
 > 3. **Which app is in front:** `getRunningTasks`, with `dumpsys activity activities` as a fallback, so it can name the note after the app and know whether Notes must be brought forward.
 > 4. **Switching apps:** `moveTaskToFront` to bring Notes forward (or back to the user's app for "Stay here"), plus an intent that opens a note in Notes.
 > 5. **The pen after the selection screen:** `PluginApp.showPluginView(0)` via reflection, after the region-selection screen closes, so NOTE and DOC re-enable pen input. Without it the pen could stay disabled.
-> 6. **Image helpers:** cropping the box the user drew, finding where a note page's content ends (a pixel scan of a page render, for pasting below it), measuring where a highlighted text line ends and whether the link's spot is blank, fitting a landscape page image into a portrait page, reading a PDF page's size with Android's `PdfRenderer`, and writing a blank white page image. These are plain bitmap operations on files in the plugin's folder.
-> 7. **Log file:** "Save a log file" in the settings writes SnapMark's own recent log lines to a text file, which is then copied to `EXPORT/` through the plugin SDK. Only when the user taps it.
+> 6. **Image helpers:** cropping the box the user drew, finding where a note page's content ends (a pixel scan of a page render, for pasting below it), measuring where a highlighted text line ends and whether the link's spot is blank, fitting a landscape page image into a portrait page, reading a PDF page's size with Android's `PdfRenderer` (not on Android 8, where it can crash), and writing a blank white page image. These are plain bitmap operations on files in the plugin's folder.
+> 7. **Log file:** SnapMark's own log lines are also appended to a small file in the app's private files folder (a new one at each start; the previous one is kept), so a crash leaves its last lines. "Save a log file" in the settings writes the recent lines and the end of the previous session to a text file, which is then copied to `EXPORT/` through the plugin SDK. Only when the user taps it.
 > 8. **Cleanup:** removes its own leftover button views after a plugin update (`WindowManagerGlobal`, matched by its own view tag).
 >
 > No other system APIs are used, and nothing runs in the background except the button waiting for a tap.

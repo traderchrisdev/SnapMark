@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.4 (2026-11-25)
+
+- **A5X and A6X: snaps from PDFs.** Snap page and Snap region in a PDF showed "Snapping…" and then nothing: on the older Android of these devices, the part of Android that SnapMark asked for a PDF page's size can crash, and SnapMark restarted. SnapMark no longer uses it there. (A landscape PDF page on these devices is snapped like a portrait one.) Not yet tested on an A5X/A6X.
+- **A log that survives a crash.** SnapMark's log is now also kept in a file, and Save a log file adds the last lines from before SnapMark last started, so a crash shows what SnapMark was doing.
+- For developers: the device test checks that a saved log has the end of the previous session.
+
 ## 0.19.3 (2026-11-10)
 
 - **Fixed: "Snap failed" for a snap that worked.** Right after the floating button's screen closed, Notes could take a moment to be ready, and opening the new snap failed ("The handwriting app is not open"), leaving a blank note behind. SnapMark now waits for Notes for a few seconds and opens it.
